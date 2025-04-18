@@ -1,0 +1,152 @@
+/* Updated color variables */
+:root {
+    --color-black: #292526;    /* base black */
+    --color-gray: #464646;     /* secondary base */
+    --color-orange: #f37023;   /* accent/detals */
+    --color-purple: #6561ac;   /* neutral or for statuses */
+    --color-green: #0eb24e;    /* success */
+    --color-red: #cd004b;      /* error */
+
+    --bg-color: var(--color-black);
+    --text-color: #e0e0e0;
+    --accent-color: var(--color-orange);
+    --card-bg: var(--color-gray);
+}
+
+/* Base styling */
+body {
+    margin: 0;
+    font-family: sans-serif;
+    background: var(--bg-color);
+    color: var(--text-color);
+}
+
+header, h1, h2, h3, p, label, button, input, textarea {
+    color: var(--text-color);
+}
+
+header {
+    padding: 20px;
+    text-align: center;
+    background: #151515;
+    box-shadow: 0 0 5px #000;
+    border-radius: 0 0 8px 8px; /* Subtle rounding at bottom of header */
+}
+
+/* Main container spacing */
+main {
+    padding: 20px;
+}
+
+/* Buttons */
+button {
+    background: var(--accent-color);
+    border: none;
+    color: #fff;
+    padding: 10px 15px;
+    cursor: pointer;
+    font-size: 1rem;
+    margin-left: 5px;
+    border-radius: 6px; /* Subtle rounding */
+}
+
+/* Red button for Cancel */
+.red-button {
+    background: var(--color-red) !important;
+}
+
+button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Scene card container */
+.scene-card {
+    background: var(--card-bg);
+    padding: 10px;
+    margin-bottom: 15px;
+    display: flex;
+    align-items: center;      /* align items on the same row */
+    justify-content: space-between;
+    border-radius: 8px;       /* Subtle rounding for the card */
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    min-height: 200px;        /* Make sure we have enough height for the 200px figure */
+}
+
+/* The text area: expand to fill remaining space, 200px high. */
+textarea {
+    background: #2b2b2b;
+    border: 1px solid #444;
+    color: var(--text-color);
+    font-family: sans-serif;
+    font-size: 0.9rem;
+    padding: 8px;
+    resize: none;
+    height: 200px;            /* Force 200px height */
+    flex: 1;                  /* take remaining width */
+    margin-right: 10px;
+    border-radius: 6px;       /* subtle rounding */
+    box-sizing: border-box;    /* ensure padding doesn't overflow */
+}
+
+/* Custom scrollbar for textareas (WebKit-only) */
+textarea::-webkit-scrollbar {
+    width: 8px;
+}
+textarea::-webkit-scrollbar-track {
+    background: #444;
+    border-radius: 4px;
+}
+textarea::-webkit-scrollbar-thumb {
+    background: var(--accent-color);
+    border-radius: 4px;
+}
+
+/* Figure: 200px tall, ~16:9 ratio => ~355px wide. Rounded corners. */
+figure {
+    margin: 0;
+    position: relative;
+    height: 200px;
+    width: 356px; /* ~16:9 at 200px height */
+    border-radius: 6px;
+    overflow: hidden; /* hide corners if image is rounded */
+    flex-shrink: 0;
+}
+
+/* The image inside figure */
+figure img {
+    border-radius: 6px; /* match figure rounding */
+}
+
+/* Position the caption (button) on the right side at the bottom */
+figcaption {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+}
+
+/* Purple for statuses (uploading audio, generating video, etc.) */
+.loading-feedback {
+    background: var(--color-purple) !important;
+    padding: 10px;
+    margin: 10px 0;
+    display: inline-block;
+    border-radius: 6px; /* subtle rounding */
+}
+
+/* Final video styling */
+#final-video {
+    max-width: 100%;
+    outline: 2px solid var(--accent-color);
+    margin: 20px 0;
+    border-radius: 8px; /* subtle rounding on the video container */
+    overflow: hidden;
+}
+
+#video-progress {
+    display: none;
+    color: white;
+    font-weight: bold;
+    padding: 8px 12px;
+    border-radius: 4px;
+}

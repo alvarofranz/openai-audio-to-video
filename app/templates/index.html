@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Make your story alive</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='assets/css/styles.css') }}">
+    <script src="{{ url_for('static', filename='assets/js/general.js') }}" defer></script>
+</head>
+<body>
+<header>
+    <!-- We'll replace this text with the story title once it's known -->
+    <h1>Make your story alive</h1>
+</header>
+
+<main id="main-content">
+    <!-- Step 1: Audio upload -->
+    <div id="upload-section">
+        <input type="file" id="audio-file-input" accept="audio/*" />
+        <button id="upload-btn">Use this audio</button>
+    </div>
+
+    <!-- Step 1.5: Show "Uploading audio..." with a Cancel button while the request is in flight -->
+    <div id="uploading-section" style="display:none;">
+        <p id="uploading-feedback" class="loading-feedback">
+            Uploading audio...
+        </p>
+        <button id="upload-cancel-btn" class="red-button">Cancel</button>
+    </div>
+
+    <!-- Step 2: After audio is fully uploaded & transcribed, show the embedded audio and remove Cancel button -->
+    <div id="audio-processing-section" style="display:none;">
+        <audio controls id="uploaded-audio" style="display:block; width:100%;"></audio>
+        <div id="whisper-loading" class="loading-feedback" style="display:none;">
+            Converting audio to text...
+        </div>
+        <!-- Place the story description under the audio embed -->
+        <p id="story-description" style="margin-top:10px; display:none;"></p>
+        <!-- Additional paragraph to show story ingredients -->
+        <p id="story-ingredients" style="margin-top:10px; display:none; white-space:pre-wrap;"></p>
+    </div>
+
+    <!-- Step 3.5: chunk processing status -->
+    <div id="chunk-processing-status" class="loading-feedback" style="display:none;">
+        Processing chunks...
+    </div>
+
+    <!-- Scenes container -->
+    <div id="scenes-container"></div>
+
+    <!-- Generate video button & indefinite loading -->
+    <div id="video-generation-section" style="display:none;">
+        <button id="generate-video-btn" disabled>Generate Video</button>
+        <div id="video-progress" class="loading-feedback" style="display:none;">
+            Generating video...
+        </div>
+    </div>
+
+    <!-- Final video embed -->
+    <div id="final-video-section" style="display:none;">
+        <video controls id="final-video">
+            <source id="final-video-source" src="" type="video/mp4">
+        </video>
+    </div>
+</main>
+</body>
+</html>
