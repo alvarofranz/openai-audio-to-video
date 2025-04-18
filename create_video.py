@@ -45,7 +45,7 @@ def preprocess_image_prompt(client, full_story, style_prefix, scene_text):
                         "You are a prompt preprocessor specialized in generating prompts for images that will be part of a sequence in a larger story. You need to capture the style, an overview of the entire story for context, and the details for this specific image. Please produce a single final prompt for the image, capturing the style perfectly, the story essence, but focusing with great detail on the current scene. Do not mention anything in the prompt that may lead to text generation. Avoid using character personal names, focus on the visual descriptions. Also do not use dialogues or dialogue inciting words like 'asks' or 'says'. Focus on visual aspects and actions to make the scene is dynamic and captures the key details for the story but specifically for the current scene. It is very important to include all the style details blended into the prompt effectively, giving a clear detailed final prompt where you describe the background, the foreground, the perspective, some details, just like an artist would create a very dynamic and cinematic scene. Here are the three inputs:\n\n"
                         f"style:\n{style_prefix}\n\n"
                         f"story:\n{full_story}\n\n"
-                        f"sequence (this chunk):\n{scene_text}"
+                        f"current sequence:\n{scene_text}"
                     ),
                 },
                 {
