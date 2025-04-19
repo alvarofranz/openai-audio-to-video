@@ -1,4 +1,6 @@
-/* Updated color variables */
+/* Import Google Fonts */
+@import url("https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&family=Roboto+Mono&display=swap");
+
 :root {
     --color-black: #292526;    /* base black */
     --color-gray: #464646;     /* secondary base */
@@ -16,13 +18,20 @@
 /* Base styling */
 body {
     margin: 0;
-    font-family: sans-serif;
     background: var(--bg-color);
     color: var(--text-color);
+    font-family: 'Roboto', sans-serif;
+    line-height: 1.5;
 }
 
-header, h1, h2, h3, p, label, button, input, textarea {
+header, h1, h2, h3, p, label, button {
     color: var(--text-color);
+    font-family: 'Roboto', sans-serif;
+}
+
+input, textarea, select {
+    font-family: 'Roboto Mono', monospace;
+    line-height: 1.2;
 }
 
 header {
@@ -30,15 +39,14 @@ header {
     text-align: center;
     background: #151515;
     box-shadow: 0 0 5px #000;
-    border-radius: 0 0 8px 8px; /* Subtle rounding at bottom of header */
+    border-radius: 0 0 8px 8px;
 }
 
-/* Main container spacing */
 main {
     padding: 20px;
 }
 
-/* Buttons */
+/* Buttons with subtle hover effect */
 button {
     background: var(--accent-color);
     border: none;
@@ -47,14 +55,18 @@ button {
     cursor: pointer;
     font-size: 1rem;
     margin-left: 5px;
-    border-radius: 6px; /* Subtle rounding */
+    border-radius: 6px;
+    transition: background 0.2s ease;
 }
-
-/* Red button for Cancel */
+button:hover {
+    background: #ff9145;
+}
 .red-button {
     background: var(--color-red) !important;
 }
-
+.red-button:hover {
+    background: #ff206d !important;
+}
 button:disabled {
     opacity: 0.5;
     cursor: not-allowed;
@@ -65,88 +77,169 @@ button:disabled {
     background: var(--card-bg);
     padding: 10px;
     margin-bottom: 15px;
-    display: flex;
-    align-items: center;      /* align items on the same row */
-    justify-content: space-between;
-    border-radius: 8px;       /* Subtle rounding for the card */
+    border-radius: 8px;
     box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-    min-height: 200px;        /* Make sure we have enough height for the 200px figure */
+    min-height: 230px;
 }
 
-/* The text area: expand to fill remaining space, 200px high. */
-textarea {
-    background: #2b2b2b;
-    border: 1px solid #444;
-    color: var(--text-color);
-    font-family: sans-serif;
-    font-size: 0.9rem;
-    padding: 8px;
-    resize: none;
-    height: 200px;            /* Force 200px height */
-    flex: 1;                  /* take remaining width */
-    margin-right: 10px;
-    border-radius: 6px;       /* subtle rounding */
-    box-sizing: border-box;    /* ensure padding doesn't overflow */
+/* The container holding tabs + text + scene text + figure */
+.scene-card-content {
+    display: flex;
+    flex-direction: row;
+    gap: 10px;
+    align-items: stretch; /* ensure both sides match in height */
+    justify-content: space-between;
 }
-
-/* Custom scrollbar for textareas (WebKit-only) */
-textarea::-webkit-scrollbar {
-    width: 8px;
+.tab-contents-wrapper {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    /* Make this side same height as figure */
 }
-textarea::-webkit-scrollbar-track {
-    background: #444;
-    border-radius: 4px;
-}
-textarea::-webkit-scrollbar-thumb {
-    background: var(--accent-color);
-    border-radius: 4px;
-}
-
-/* Figure: 200px tall, ~16:9 ratio => ~355px wide. Rounded corners. */
 figure {
     margin: 0;
     position: relative;
     height: 200px;
-    width: 356px; /* ~16:9 at 200px height */
+    width: 356px; /* about 16:9 ratio for 200px height */
     border-radius: 6px;
-    overflow: hidden; /* hide corners if image is rounded */
+    overflow: hidden;
     flex-shrink: 0;
 }
-
-/* The image inside figure */
 figure img {
-    border-radius: 6px; /* match figure rounding */
+    border-radius: 6px;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
 }
-
-/* Position the caption (button) on the right side at the bottom */
 figcaption {
     position: absolute;
     bottom: 10px;
     right: 10px;
 }
 
-/* Purple for statuses (uploading audio, generating video, etc.) */
+/* Loading feedback */
 .loading-feedback {
     background: var(--color-purple) !important;
     padding: 10px;
     margin: 10px 0;
     display: inline-block;
-    border-radius: 6px; /* subtle rounding */
+    border-radius: 6px;
 }
 
 /* Final video styling */
+#final-video-section {
+    text-align: center;
+}
 #final-video {
-    max-width: 100%;
+    max-width: 500px;
+    width: 100%;
     outline: 2px solid var(--accent-color);
     margin: 20px 0;
-    border-radius: 8px; /* subtle rounding on the video container */
+    border-radius: 8px;
     overflow: hidden;
 }
-
+#final-video-path {
+    font-size: 0.9rem;
+    color: #bbb;
+    margin-top: -10px;
+}
 #video-progress {
     display: none;
     color: white;
     font-weight: bold;
     padding: 8px 12px;
     border-radius: 4px;
+}
+
+/* Tabs container with no spacing between tabs, plus no border gap
+   The top side of the textarea merges visually with the bottom side of the tabs */
+.tabs-container {
+    display: flex;
+    margin: 0; /* remove default margin */
+    border: 1px solid #444;
+    border-bottom: none;
+    border-radius: 6px 6px 0 0;
+    overflow: hidden; /* to clip the tab hover if needed */
+}
+.tab-button {
+    flex: 1;
+    text-align: center;
+    padding: 8px 0;
+    cursor: pointer;
+    background: #333;
+    border: none; /* no dividing lines between tabs */
+    font-family: 'Roboto', sans-serif;
+    transition: background 0.2s ease;
+}
+.tab-button:hover {
+    background: #4f4f4f;
+}
+.tab-button.active {
+    background: var(--accent-color);
+}
+.tab-button.active:hover {
+    background: #ff9145;
+}
+
+/* Tab content wrapper with bottom corners */
+.tab-content {
+    display: none;
+    border: 1px solid #444;
+    border-top: none; /* merges with tabs container */
+    border-radius: 0 0 6px 6px;
+    /* keep consistent overall border box with the tabs. */
+}
+.tab-content.active {
+    display: block;
+}
+
+.tab-content-prompt textarea {
+    /* bigger font, line-height 1.4, initial height 200px, smooth transition for height. */
+    font-size: 1rem;
+    line-height: 1.4;
+    height: 200px;
+    transition: height 0.3s ease;
+    width: 100%;
+    box-sizing: border-box;
+    border-radius: 0; /* merges visually with the tab container's border. */
+    border: none;
+    background: #2b2b2b;
+    color: var(--text-color);
+    resize: none;
+    outline: none;
+    padding: 8px;
+}
+
+/* Scene text block (not a textarea) */
+.tab-content-text .scene-text-block {
+    background: #2b2b2b;
+    border: none;
+    color: var(--text-color);
+    font-size: 0.9rem;
+    padding: 8px;
+    line-height: 1.4;
+    height: 200px;
+    overflow-y: auto;
+    border-radius: 0;
+}
+
+/* Scrollbars for textual areas */
+.tab-content-prompt textarea::-webkit-scrollbar,
+.tab-content-text .scene-text-block::-webkit-scrollbar {
+    width: 8px;
+}
+.tab-content-prompt textarea::-webkit-scrollbar-track,
+.tab-content-text .scene-text-block::-webkit-scrollbar-track {
+    background: #444;
+    border-radius: 4px;
+}
+.tab-content-prompt textarea::-webkit-scrollbar-thumb,
+.tab-content-text .scene-text-block::-webkit-scrollbar-thumb {
+    background: var(--accent-color);
+    border-radius: 4px;
+}
+
+/* Hover effect for .regenerate-btn (subtle) */
+.regenerate-btn:hover {
+    background: #ff9145;
 }

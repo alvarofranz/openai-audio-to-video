@@ -13,10 +13,47 @@
 </header>
 
 <main id="main-content">
+
+    <!-- Step 0: Settings form -->
+    <form id="settings-form" style="margin-bottom:20px;">
+        <div style="margin-bottom:10px;">
+            <label for="words-per-scene">Words per scene:</label>
+            <input type="number" id="words-per-scene" value="40" style="width:80px;">
+        </div>
+
+        <div style="margin-bottom:10px;">
+            <label for="text-model">Text model:</label>
+            <input type="text" id="text-model" value="o4-mini" style="width:120px;">
+        </div>
+
+        <div style="margin-bottom:10px;">
+            <label for="size-select">Size:</label>
+            <select id="size-select">
+                <option value="1024x1024">1024x1024</option>
+                <option value="1792x1024" selected>1792x1024</option>
+                <option value="1024x1792">1024x1792</option>
+            </select>
+        </div>
+
+        <div style="margin-bottom:10px;">
+            <label for="image-prompt-style">IMAGE_PROMPT_STYLE:</label><br>
+            <textarea id="image-prompt-style" rows="4" style="width:100%;">
+A cinematic illustration with full bleed that fills the entire 16:9 frame rendered in a soft, painterly style with rich, organic textures and natural, earthy color palettes. The aesthetic is whimsical and magical, evoking a deep connection with nature. The magical characters that are not human, are are small delicate porcelain elf beings, much smaller than humans, with expressive features, a playful and mischievous spirit, and a gentle warmth, with dainty pointed ears and wearing clothes scraps of old fabric—frayed linen and faded cotton in muted earth‑ton. The overall tone is dreamlike and nostalgic, blending serene beauty with a touch of lighthearted magic. The style emphasizes hand-drawn charm, detailed environments, and an atmosphere filled with quiet wonder and subtle enchantment.
+            </textarea>
+        </div>
+
+        <div style="margin-bottom:10px;">
+            <label for="image-preprocessing-prompt">IMAGE_PREPROCESSING_PROMPT:</label><br>
+            <textarea id="image-preprocessing-prompt" rows="6" style="width:100%;">
+You are a prompt preprocessor specialized in generating prompts for images that will be part of a sequence in a larger story. I will provide you with the style and the entire story for context, as well as the details for this specific image and its elements. Please produce a single final prompt for the current image, capturing the style and element descriptions provided perfectly, but focusing with great detail on the [current_sequence], not mixing the whole story up in one prompt. You will receive separate instructions for each [current_sequence], and you need to focus on one final prompt for that specific [current_sequence]. Avoid using character personal names, focus exclusively on the visual descriptions. Do not mention anything in the prompt that may lead to text generation, even if the sequence seems like it should, find a visual way to describe the scene. So never use dialogues or dialogue inciting words like 'asks' or 'says'. Focus on visual aspects to make the scene captures the currently relevant key details in a cinematic approach. It is very important to include all the provided general [image_style] details and specific [story_items_style] details blended into the prompt effectively, giving a clear detailed final prompt where you describe the background, the foreground, the perspective, just like an artist would create a very meaningful scene (but making sure you do not mix the whole story in one image). For characters, scenarios and items you must use the descriptions provided in [story_items_style] width all the visual details, to avoid confusion with the image generation, but only describe the items that are relevant to this current sequence, completely ignoring characters, items or scenarios that are not present in the [current_sequence]. You must detect and use the same language as the provided for [story] and [current_sequence], that will be your output language. Min length: 3000 characters. Max length: 3500 characters. Here are the inputs:
+            </textarea>
+        </div>
+    </form>
+
     <!-- Step 1: Audio upload -->
     <div id="upload-section">
         <input type="file" id="audio-file-input" accept="audio/*" />
-        <button id="upload-btn">Use this audio</button>
+        <button id="upload-btn" type="button">Use this audio</button>
     </div>
 
     <!-- Step 1.5: Show "Uploading audio..." with a Cancel button while the request is in flight -->
@@ -27,15 +64,13 @@
         <button id="upload-cancel-btn" class="red-button">Cancel</button>
     </div>
 
-    <!-- Step 2: After audio is fully uploaded & transcribed, show the embedded audio and remove Cancel button -->
+    <!-- Step 2: After audio is fully uploaded & transcribed, show embedded audio + summary -->
     <div id="audio-processing-section" style="display:none;">
-        <audio controls id="uploaded-audio" style="display:block; width:100%;"></audio>
+        <audio controls id="uploaded-audio" style="display:block; width:100%; margin-top:10px;"></audio>
         <div id="whisper-loading" class="loading-feedback" style="display:none;">
             Converting audio to text...
         </div>
-        <!-- Place the story description under the audio embed -->
         <p id="story-description" style="margin-top:10px; display:none;"></p>
-        <!-- Additional paragraph to show story ingredients -->
         <p id="story-ingredients" style="margin-top:10px; display:none; white-space:pre-wrap;"></p>
     </div>
 
@@ -55,12 +90,14 @@
         </div>
     </div>
 
-    <!-- Final video embed -->
+    <!-- Final video embed, center it, show the path -->
     <div id="final-video-section" style="display:none;">
         <video controls id="final-video">
             <source id="final-video-source" src="" type="video/mp4">
         </video>
+        <div id="final-video-path"></div>
     </div>
+
 </main>
 </body>
 </html>
