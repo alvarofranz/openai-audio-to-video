@@ -22,6 +22,12 @@ This is a web app made with Python, Flask, MoviePy and OpenAI that transforms an
 
 Whether you’re narrating a fairy tale, sharing personal anecdotes, or preparing a memorable presentation, this tool helps you transform words into visuals—so every story can shine!
 
+## Roadmap
+
+- Integrate the new images API as soon as it comes out.
+- Have a "project library of images". When generating an image, copy it to "the library", add a button to the image that allows "select from library" (always allow loading local files in there).
+- Create Ken Burns sliding effect, better transitions
+
 ## Requirements
 
 - Python 3.7+
