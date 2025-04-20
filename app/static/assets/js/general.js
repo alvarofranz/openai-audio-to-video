@@ -33,6 +33,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const textModelInput = document.getElementById('text-model');
     const sizeSelect = document.getElementById('size-select');
     const imagePromptStyleTextarea = document.getElementById('image-prompt-style');
+    const charactersPromptStyleTextarea = document.getElementById('characters-prompt-style'); // NEW
     const imagePreprocessingPromptTextarea = document.getElementById('image-preprocessing-prompt');
 
     let currentJobId = null;
@@ -90,6 +91,7 @@ document.addEventListener('DOMContentLoaded', function() {
         formData.append('text_model', textModelInput.value.trim());
         formData.append('size', sizeSelect.value);
         formData.append('image_prompt_style', imagePromptStyleTextarea.value);
+        formData.append('characters_prompt_style', charactersPromptStyleTextarea.value); // NEW
         formData.append('image_preprocessing_prompt', imagePreprocessingPromptTextarea.value);
 
         settingsForm.style.display = 'none';
@@ -226,7 +228,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const cardContent = document.createElement('div');
         cardContent.className = 'scene-card-content';
         const tabContentsContainer = document.createElement('div');
-        tabContentsContainer.className = 'tab-contents-wrapper'; // custom for styling
+        tabContentsContainer.className = 'tab-contents-wrapper';
 
         tabContentsContainer.appendChild(tabsContainer);
         tabContentsContainer.appendChild(tabPromptContent);
@@ -263,7 +265,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     // -------------- RESET TEXTAREA ON BLUR --------------
     function resetTextareaHeight(e) {
-        // revert to original 200px (or any default)
+        // revert to original 200px
         e.target.style.height = '200px';
     }
 
@@ -310,8 +312,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // -------------- FILL PROMPT TAB ALWAYS --------------
     function fillPromptTab(sceneCard, finalPrompt) {
-        // Always target the prompt tab content's textarea,
-        // not only if it's active.
         const promptTab = sceneCard.querySelector('.tab-content-prompt textarea');
         if (promptTab) {
             promptTab.value = finalPrompt;

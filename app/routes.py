@@ -10,45 +10,39 @@ from app.utils.video_utils import create_video_from_scenes
 from app.utils.prompt_utils import (
     generate_image_for_scene,
     preprocess_image_prompt,
-    preprocess_story_data
+    preprocess_story_data,
+    generate_title_and_description
+)
+
+# Import your default values
+from defaults import (
+    WORDS_PER_SCENE,
+    TEXT_MODEL,
+    VIDEO_SIZE,
+    IMAGE_PROMPT_STYLE,
+    CHARACTERS_PROMPT_STYLE,
+    IMAGE_PREPROCESSING_PROMPT
 )
 
 main_bp = Blueprint("main", __name__)
 
 CURRENT_JOBS = {}
 
-def generate_title_and_description(client, full_text, text_model):
-    prompt_text = (
-        "You are a helpful assistant. The user has provided the following story text, in an unknown language. "
-        "We need you to generate a short 'title' and a short 'description' for this story, both in the same language as the provided story text. Importantly, the "
-        "title and description must be in the SAME language as the original text. The output must clearly be "
-        "in the format:\n\n"
-        "title: <captivating amazing creative title of around 10 words, no new lines>\n"
-        "description: <some description of around 100 words, no new lines>\n\n"
-        f"Story text:\n{full_text}\n\n"
-        "Now output only the two items with no newlines or extra commentary for each item, because it will be processed programmatically and needs to be just two lines, one for title:, and one for description:."
-    )
-    try:
-        response = client.chat.completions.create(
-            model=text_model,
-            messages=[{"role": "user", "content": prompt_text}],
-        )
-        raw_output = response.choices[0].message.content.strip()
-        title = ""
-        description = ""
-        for line in raw_output.split("\n"):
-            line = line.strip()
-            if line.lower().startswith("title:"):
-                title = line.split(":", 1)[1].strip()
-            elif line.lower().startswith("description:"):
-                description = line.split(":", 1)[1].strip()
-        return {"title": title, "description": description}
-    except Exception:
-        return {"title": "Untitled", "description": "No description available."}
-
 @main_bp.route("/", methods=["GET"])
 def index():
-    return render_template("index.html")
+    """
+    Pass the defaults from defaults.py into the template,
+    so index.html can auto-populate those fields.
+    """
+    return render_template(
+        "index.html",
+        default_words_per_scene=WORDS_PER_SCENE,
+        default_text_model=TEXT_MODEL,
+        default_video_size=VIDEO_SIZE,
+        default_image_prompt_style=IMAGE_PROMPT_STYLE,
+        default_characters_prompt_style=CHARACTERS_PROMPT_STYLE,
+        default_image_preprocessing_prompt=IMAGE_PREPROCESSING_PROMPT
+    )
 
 @main_bp.route("/upload-audio", methods=["POST"])
 def upload_audio():
@@ -66,6 +60,7 @@ def upload_audio():
     text_model = request.form.get("text_model", "o4-mini").strip()
     size = request.form.get("size", "1792x1024").strip()
     image_prompt_style = request.form.get("image_prompt_style", "")
+    characters_prompt_style = request.form.get("characters_prompt_style", "")  # NEW
     image_preprocessing_prompt = request.form.get("image_preprocessing_prompt", "")
 
     try:
@@ -94,8 +89,14 @@ def upload_audio():
         return jsonify({"error": f"Failed to transcribe audio: {str(e)}"}), 500
 
     full_text = whisper_data.text.strip()
+
+    # Generate title & description
     td = generate_title_and_description(client, full_text, text_model)
-    story_ingredients = preprocess_story_data(client, full_text, text_model)
+
+    # Preprocess story data with characters prompt
+    story_ingredients = preprocess_story_data(client, full_text, text_model, characters_prompt_style)
+
+    # Chunk the transcript
     chunks = chunk_transcript(whisper_data, wps)
     if not chunks:
         return jsonify({"error": "No scenes could be created."}), 500
@@ -110,6 +111,7 @@ def upload_audio():
         "description": td["description"],
         "job_folder": job_folder,
         "story_ingredients": story_ingredients,
+        "characters_prompt_style": characters_prompt_style,
         "words_per_scene": wps,
         "text_model": text_model,
         "video_width": video_width,
@@ -160,7 +162,8 @@ def preprocess_chunk():
         style_prefix=job_data["image_prompt_style"],
         scene_text=raw_text,
         text_model=job_data["text_model"],
-        image_preprocessing_prompt=job_data["image_preprocessing_prompt"]
+        image_preprocessing_prompt=job_data["image_preprocessing_prompt"],
+        characters_prompt_style=job_data["characters_prompt_style"]
     )
     job_data["prompts"][chunk_index] = final_prompt
     return jsonify({"preprocessed_prompt": final_prompt})
@@ -196,7 +199,8 @@ def generate_image_route():
         image_preprocessing_prompt=job_data["image_preprocessing_prompt"],
         text_model=job_data["text_model"],
         width=job_data["video_width"],
-        height=job_data["video_height"]
+        height=job_data["video_height"],
+        characters_prompt_style=job_data["characters_prompt_style"]
     )
     if not image_path:
         return jsonify({"error": "Failed to generate image"}), 500

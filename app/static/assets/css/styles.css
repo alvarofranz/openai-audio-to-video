@@ -13,6 +13,12 @@
     --text-color: #e0e0e0;
     --accent-color: var(--color-orange);
     --card-bg: var(--color-gray);
+
+    --header-bg: #151515;      /* used for the header background */
+    --border-color: #444;      /* used for borders, tab lines, etc. */
+    --hover-accent: #ff9145;   /* hover color for accent elements */
+    --hover-red: #ff206d;      /* hover color for red elements */
+    --dark-gray: #2b2b2b;      /* text areas background */
 }
 
 /* Base styling */
@@ -37,13 +43,51 @@ input, textarea, select {
 header {
     padding: 20px;
     text-align: center;
-    background: #151515;
+    background: var(--header-bg);
     box-shadow: 0 0 5px #000;
     border-radius: 0 0 8px 8px;
+    margin-bottom: 30px;
 }
 
 main {
+    max-width: 1200px;
+    margin: 0 auto;
     padding: 20px;
+}
+
+/* Form styles */
+.settings-form {
+    margin-bottom: 20px;
+}
+.form-row {
+    margin-bottom: 10px;
+}
+.small-input {
+    width: 80px;
+}
+.medium-input {
+    width: 120px;
+}
+.full-width-textarea {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+/* Audio upload & general sections */
+.upload-section {
+    margin-bottom: 20px;
+}
+.uploading-section {
+    margin-bottom: 20px;
+}
+.uploaded-audio {
+    display: block;
+    width: 100%;
+    margin-top: 10px;
+}
+.story-description,
+.story-ingredients {
+    margin-top: 10px;
 }
 
 /* Buttons with subtle hover effect */
@@ -59,13 +103,14 @@ button {
     transition: background 0.2s ease;
 }
 button:hover {
-    background: #ff9145;
+    background: var(--hover-accent);
 }
 .red-button {
-    background: var(--color-red) !important;
+    background: var(--color-red);
+    transition: background 0.2s ease;
 }
 .red-button:hover {
-    background: #ff206d !important;
+    background: var(--hover-red);
 }
 button:disabled {
     opacity: 0.5;
@@ -79,7 +124,6 @@ button:disabled {
     margin-bottom: 15px;
     border-radius: 8px;
     box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-    min-height: 230px;
 }
 
 /* The container holding tabs + text + scene text + figure */
@@ -87,15 +131,17 @@ button:disabled {
     display: flex;
     flex-direction: row;
     gap: 10px;
-    align-items: stretch; /* ensure both sides match in height */
+    align-items: stretch; /* keep same height for both columns in normal state */
     justify-content: space-between;
+    min-height: 200px; /* ensures at least 200px tall in normal state */
 }
 .tab-contents-wrapper {
     display: flex;
     flex-direction: column;
     flex: 1;
-    /* Make this side same height as figure */
 }
+
+/* Figure for the image on the right */
 figure {
     margin: 0;
     position: relative;
@@ -119,7 +165,7 @@ figcaption {
 
 /* Loading feedback */
 .loading-feedback {
-    background: var(--color-purple) !important;
+    background: var(--color-purple);
     padding: 10px;
     margin: 10px 0;
     display: inline-block;
@@ -151,15 +197,15 @@ figcaption {
     border-radius: 4px;
 }
 
-/* Tabs container with no spacing between tabs, plus no border gap
+/* Tabs container with no spacing between tabs,
    The top side of the textarea merges visually with the bottom side of the tabs */
 .tabs-container {
     display: flex;
-    margin: 0; /* remove default margin */
-    border: 1px solid #444;
+    margin: 0;
+    border: 1px solid var(--border-color);
     border-bottom: none;
     border-radius: 6px 6px 0 0;
-    overflow: hidden; /* to clip the tab hover if needed */
+    overflow: hidden;
 }
 .tab-button {
     flex: 1;
@@ -167,7 +213,7 @@ figcaption {
     padding: 8px 0;
     cursor: pointer;
     background: #333;
-    border: none; /* no dividing lines between tabs */
+    border: none;
     font-family: 'Roboto', sans-serif;
     transition: background 0.2s ease;
 }
@@ -178,32 +224,31 @@ figcaption {
     background: var(--accent-color);
 }
 .tab-button.active:hover {
-    background: #ff9145;
+    background: var(--hover-accent);
 }
 
 /* Tab content wrapper with bottom corners */
 .tab-content {
     display: none;
-    border: 1px solid #444;
-    border-top: none; /* merges with tabs container */
+    border: 1px solid var(--border-color);
+    border-top: none;
     border-radius: 0 0 6px 6px;
-    /* keep consistent overall border box with the tabs. */
 }
 .tab-content.active {
     display: block;
 }
 
+/* Prompt textarea */
 .tab-content-prompt textarea {
-    /* bigger font, line-height 1.4, initial height 200px, smooth transition for height. */
     font-size: 1rem;
     line-height: 1.4;
     height: 200px;
     transition: height 0.3s ease;
     width: 100%;
     box-sizing: border-box;
-    border-radius: 0; /* merges visually with the tab container's border. */
+    border-radius: 0;
     border: none;
-    background: #2b2b2b;
+    background: var(--dark-gray);
     color: var(--text-color);
     resize: none;
     outline: none;
@@ -212,7 +257,7 @@ figcaption {
 
 /* Scene text block (not a textarea) */
 .tab-content-text .scene-text-block {
-    background: #2b2b2b;
+    background: var(--dark-gray);
     border: none;
     color: var(--text-color);
     font-size: 0.9rem;
@@ -230,7 +275,7 @@ figcaption {
 }
 .tab-content-prompt textarea::-webkit-scrollbar-track,
 .tab-content-text .scene-text-block::-webkit-scrollbar-track {
-    background: #444;
+    background: var(--border-color);
     border-radius: 4px;
 }
 .tab-content-prompt textarea::-webkit-scrollbar-thumb,
@@ -241,5 +286,5 @@ figcaption {
 
 /* Hover effect for .regenerate-btn (subtle) */
 .regenerate-btn:hover {
-    background: #ff9145;
+    background: var(--hover-accent);
 }
