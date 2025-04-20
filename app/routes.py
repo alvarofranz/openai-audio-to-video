@@ -56,13 +56,15 @@ def upload_audio():
     if not file:
         return jsonify({"error": "No file uploaded"}), 400
 
+    # Grab user input
     words_per_scene = request.form.get("words_per_scene", "40").strip()
     text_model = request.form.get("text_model", "o4-mini").strip()
     size = request.form.get("size", "1792x1024").strip()
     image_prompt_style = request.form.get("image_prompt_style", "")
-    characters_prompt_style = request.form.get("characters_prompt_style", "")  # NEW
+    characters_prompt_style = request.form.get("characters_prompt_style", "")
     image_preprocessing_prompt = request.form.get("image_preprocessing_prompt", "")
 
+    # Parse size or fallback
     try:
         width_str, height_str = size.lower().split("x")
         video_width = int(width_str)
@@ -71,18 +73,26 @@ def upload_audio():
         video_width = 1792
         video_height = 1024
 
+    # Parse words_per_scene or fallback
     try:
         wps = int(words_per_scene)
     except:
         wps = 40
 
-    job_id = str(uuid.uuid4())
-    job_folder = os.path.join("app", "static", "tmp", job_id)
+    # Build a short unique folder name based on the audio file
+    audio_basename = os.path.splitext(os.path.basename(file.filename))[0]
+    short_uniq = str(uuid.uuid4())[:6]
+    job_id = f"{audio_basename}-{short_uniq}"
+
+    # Projects folder
+    job_folder = os.path.join("app", "static", "projects", job_id)
     os.makedirs(job_folder, exist_ok=True)
 
+    # Save the audio file
     audio_path = os.path.join(job_folder, file.filename)
     file.save(audio_path)
 
+    # Transcribe
     try:
         whisper_data = transcribe_audio(client, audio_path)
     except Exception as e:
@@ -90,17 +100,18 @@ def upload_audio():
 
     full_text = whisper_data.text.strip()
 
-    # Generate title & description
+    # Title & description
     td = generate_title_and_description(client, full_text, text_model)
 
-    # Preprocess story data with characters prompt
+    # Story ingredients
     story_ingredients = preprocess_story_data(client, full_text, text_model, characters_prompt_style)
 
-    # Chunk the transcript
+    # Chunk transcript
     chunks = chunk_transcript(whisper_data, wps)
     if not chunks:
         return jsonify({"error": "No scenes could be created."}), 500
 
+    # Store everything in memory
     CURRENT_JOBS[job_id] = {
         "audio_path": audio_path,
         "full_text": full_text,
@@ -120,6 +131,7 @@ def upload_audio():
         "image_preprocessing_prompt": image_preprocessing_prompt
     }
 
+    # Return initial job info
     return jsonify({
         "job_id": job_id,
         "title": td["title"],
@@ -186,8 +198,8 @@ def generate_image_route():
 
     images_folder = os.path.join(job_data["job_folder"], "images")
     os.makedirs(images_folder, exist_ok=True)
-    job_data["prompts"][scene_index] = new_prompt
 
+    job_data["prompts"][scene_index] = new_prompt
     image_path = generate_image_for_scene(
         client=client,
         story_text=job_data["full_text"],
@@ -204,6 +216,7 @@ def generate_image_route():
     )
     if not image_path:
         return jsonify({"error": "Failed to generate image"}), 500
+
     job_data["images"][scene_index] = image_path
 
     rel_path = image_path.split("app/static/")[-1]

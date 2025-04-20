@@ -19,28 +19,27 @@ def transcribe_audio(client: OpenAI, audio_path: str):
 
 def chunk_transcript(whisper_data, words_per_scene: int):
     """
-    1) Removes silent time gaps by shifting each segment's start time to the
-       previous segment's end if there's a gap.
-    2) Accumulates segments into chunks that each have at least 'words_per_scene'
-       words, unless it's the final leftover chunk.
-    3) If the final leftover chunk still has fewer than 'words_per_scene' words,
-       it is merged into the previous chunk. This avoids small partial chunks.
+    1) Removes silent time gaps by aligning each segment's .start to the end of
+       the previous segment, if there's a gap.
+    2) Accumulates segments until we reach or exceed 'words_per_scene' words,
+       then breaks at that segment boundary to start a new chunk.
+    3) Keeps a final leftover chunk even if it's under 'words_per_scene',
+       so the last portion is not merged or omitted.
     """
     segments = whisper_data.segments
     if not segments:
         return []
 
-    # --- 1) Remove silent time gaps between segments
+    # --- 1) Remove silent time gaps between segments ---
     last_end = 0.0
     for seg in segments:
         if seg.start > last_end:
-            # Shift this segment so it starts exactly where the previous ended
             gap = seg.start - last_end
             seg.start = last_end
-            seg.end = seg.end - gap
+            seg.end -= gap
         last_end = seg.end
 
-    # --- 2) Accumulate segments into chunks
+    # --- 2) Accumulate segments into chunks until we reach/exceed words_per_scene ---
     chunks = []
     current_chunk = []
     current_word_count = 0
@@ -51,29 +50,33 @@ def chunk_transcript(whisper_data, words_per_scene: int):
         seg_words = seg_text.split()
         seg_word_count = len(seg_words)
 
+        # Mark chunk_start the first time we add a segment
         if chunk_start is None:
             chunk_start = seg.start
 
-        # Keep adding segments until we reach or exceed words_per_scene
+        # If adding this segment crosses the threshold and we already
+        # have something in current_chunk, flush that chunk now.
         if current_word_count + seg_word_count >= words_per_scene and current_word_count > 0:
-            # Flush the current chunk
+            # Close out the current chunk at the previous segment boundary
             chunk_text = " ".join(s.text.strip() for s in current_chunk)
             chunk_end = current_chunk[-1].end
+
             chunks.append({
                 "start": chunk_start,
                 "end": chunk_end,
                 "text": chunk_text
             })
-            # Start a new chunk with this segment
+
+            # Start a new chunk with the current segment
             current_chunk = [seg]
             current_word_count = seg_word_count
             chunk_start = seg.start
         else:
-            # Keep accumulating
+            # Still below threshold, so accumulate
             current_chunk.append(seg)
             current_word_count += seg_word_count
 
-    # Flush leftover chunk, if any
+    # --- 3) Flush any leftover as a final chunk, even if under threshold ---
     if current_chunk:
         chunk_text = " ".join(s.text.strip() for s in current_chunk)
         chunk_end = current_chunk[-1].end
@@ -82,14 +85,5 @@ def chunk_transcript(whisper_data, words_per_scene: int):
             "end": chunk_end,
             "text": chunk_text
         })
-
-    # --- 3) If final chunk has fewer than 'words_per_scene' words, merge with previous
-    if len(chunks) > 1:
-        last_chunk_words = len(chunks[-1]["text"].split())
-        if last_chunk_words < words_per_scene:
-            # Merge the last chunk with the previous chunk
-            chunks[-2]["text"] += " " + chunks[-1]["text"]
-            chunks[-2]["end"] = chunks[-1]["end"]
-            chunks.pop()
 
     return chunks

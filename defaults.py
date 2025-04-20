@@ -22,7 +22,7 @@ You will receive separate instructions for each [current_sequence], and you need
 
 It is also very important to include all the provided general [image_style] details and specific [story_items_style] details blended into the prompt effectively, giving a clear detailed final prompt where you describe the background, the foreground, the perspective, just like an artist would create a very meaningful scene (but making sure you do not mix the whole story in one image).
 
-Avoid using character personal names at all costs. It is completely forbidden to use names for the images prompt, focus EXCLUSIVELY on the VISUAL DESCRIPTIONS provided in [story_items_style].
+Avoid using character personal names at all costs, since it is completely forbidden to use character personal names for the images prompt, focus EXCLUSIVELY on the VISUAL DESCRIPTIONS provided in [story_items_style].
 
 Do not mention anything in the prompt that may lead to text generation on the image, even if the sequence seems like it should, find a visual way to describe the scene. So never use dialogues or dialogue inciting words. Focus on visual aspects to make the scene captures the currently relevant key details in a cinematic approach.
 
@@ -30,5 +30,5 @@ For characters, scenarios and items you MUST use THE FULL descriptions provided 
 
 The most important thing is to not mix up everything in one image, give a static result with all the relevant details for the [current_sequence], so it represents the [current_sequence] perfectly repeating the provided descriptions for elements, scenarios and very importantly, characters.
 
-You must also detect and use the same language as the provided for [story] and [current_sequence], that will be your output language. Min length: 1500 characters. Max length: 2000 characters."""
+You must also detect and use the same language as the provided for [story] and [current_sequence], that will be your output language. Min length: 1200 characters. Max length: 1700 characters."""
 )
