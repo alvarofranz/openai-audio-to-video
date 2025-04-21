@@ -21,7 +21,10 @@ from defaults import (
     VIDEO_SIZE,
     IMAGE_PROMPT_STYLE,
     CHARACTERS_PROMPT_STYLE,
-    IMAGE_PREPROCESSING_PROMPT
+    IMAGE_PREPROCESSING_PROMPT,
+    FADE_IN,
+    FADE_OUT,
+    CROSSFADE_DUR
 )
 
 main_bp = Blueprint("main", __name__)
@@ -41,7 +44,10 @@ def index():
         default_video_size=VIDEO_SIZE,
         default_image_prompt_style=IMAGE_PROMPT_STYLE,
         default_characters_prompt_style=CHARACTERS_PROMPT_STYLE,
-        default_image_preprocessing_prompt=IMAGE_PREPROCESSING_PROMPT
+        default_image_preprocessing_prompt=IMAGE_PREPROCESSING_PROMPT,
+        default_fade_in=FADE_IN,
+        default_fade_out=FADE_OUT,
+        default_crossfade_dur=CROSSFADE_DUR
     )
 
 @main_bp.route("/upload-audio", methods=["POST"])
@@ -63,8 +69,11 @@ def upload_audio():
     image_prompt_style = request.form.get("image_prompt_style", "")
     characters_prompt_style = request.form.get("characters_prompt_style", "")
     image_preprocessing_prompt = request.form.get("image_preprocessing_prompt", "")
+    fade_in_str = request.form.get("fade_in", f"{FADE_IN}").strip()
+    fade_out_str = request.form.get("fade_out", f"{FADE_OUT}").strip()
+    crossfade_str = request.form.get("crossfade_dur", f"{CROSSFADE_DUR}").strip()
 
-    # Parse size or fallback
+    # Parse video size or fallback
     try:
         width_str, height_str = size.lower().split("x")
         video_width = int(width_str)
@@ -78,6 +87,22 @@ def upload_audio():
         wps = int(words_per_scene)
     except:
         wps = 40
+
+    # Parse fade/crossfade floats or fallback
+    try:
+        fade_in_val = float(fade_in_str)
+    except:
+        fade_in_val = FADE_IN
+
+    try:
+        fade_out_val = float(fade_out_str)
+    except:
+        fade_out_val = FADE_OUT
+
+    try:
+        crossfade_val = float(crossfade_str)
+    except:
+        crossfade_val = CROSSFADE_DUR
 
     # Build a short unique folder name based on the audio file
     audio_basename = os.path.splitext(os.path.basename(file.filename))[0]
@@ -128,7 +153,10 @@ def upload_audio():
         "video_width": video_width,
         "video_height": video_height,
         "image_prompt_style": image_prompt_style,
-        "image_preprocessing_prompt": image_preprocessing_prompt
+        "image_preprocessing_prompt": image_preprocessing_prompt,
+        "fade_in": fade_in_val,
+        "fade_out": fade_out_val,
+        "crossfade_dur": crossfade_val
     }
 
     # Return initial job info
@@ -243,7 +271,10 @@ def create_video_endpoint():
             audio_path,
             output_video_path,
             job_data["video_width"],
-            job_data["video_height"]
+            job_data["video_height"],
+            fade_in=job_data["fade_in"],
+            fade_out=job_data["fade_out"],
+            crossfade_dur=job_data["crossfade_dur"]
         )
     except Exception as e:
         return jsonify({"error": f"Failed to create video: {str(e)}"}), 500

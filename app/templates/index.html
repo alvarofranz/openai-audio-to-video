@@ -54,6 +54,42 @@
         </div>
 
         <div class="form-row">
+            <label for="fade-in">Fade In (seconds):</label>
+            <input
+                    type="number"
+                    id="fade-in"
+                    value="{{ default_fade_in }}"
+                    class="small-input"
+                    min="0"
+                    step="0.1"
+            >
+        </div>
+
+        <div class="form-row">
+            <label for="fade-out">Fade Out (seconds):</label>
+            <input
+                    type="number"
+                    id="fade-out"
+                    value="{{ default_fade_out }}"
+                    class="small-input"
+                    min="0"
+                    step="0.1"
+            >
+        </div>
+
+        <div class="form-row">
+            <label for="crossfade-dur">Crossfade (seconds):</label>
+            <input
+                    type="number"
+                    id="crossfade-dur"
+                    value="{{ default_crossfade_dur }}"
+                    class="small-input"
+                    min="0"
+                    step="0.1"
+            >
+        </div>
+
+        <div class="form-row">
             <label for="image-prompt-style">IMAGE_PROMPT_STYLE:</label><br>
             <textarea id="image-prompt-style" rows="4" class="full-width-textarea">{{ default_image_prompt_style }}</textarea>
         </div>
