@@ -22,12 +22,6 @@ This is a web app made with Python, Flask, MoviePy and OpenAI that transforms an
 
 Whether you’re narrating a fairy tale, sharing personal anecdotes, or preparing a memorable presentation, this tool helps you transform words into visuals—so every story can shine!
 
-## Roadmap
-
-- Integrate the new images API as soon as it comes out.
-- Have a "project library of images". When generating an image, copy it to "the library", add a button to the image that allows "select from library" (always allow loading local files in there).
-- Create Ken Burns sliding effect, better transitions
-
 ## Requirements
 
 - Python 3.7+
@@ -41,10 +35,15 @@ Whether you’re narrating a fairy tale, sharing personal anecdotes, or preparin
 ```bash
 python -m venv venv
 ```
-**Activate** the virtual environment:
+### **Activate** the virtual environment.
+
+On Windows:
 ```bash
-On Windows:     venv\Scripts\activate
-On macOS/Linux: source venv/bin/activate
+venv\Scripts\activate
+```
+On macOS/Linux:
+```bash
+source venv/bin/activate
 ```
 **Install** the required packages:
 ```bash
@@ -58,5 +57,15 @@ OPENAI_API_KEY=your_openai_api_key
 ```bash
 python create_video.py ./demo/audio-file.mp3
 ```
---------------
-Enjoy!
+
+## Roadmap
+
+- Integrate the new GPT-4o images API as soon as it comes out.
+- Have a "project library of images". When generating an image, copy it to "the library", add a button to the image that allows "select from library" (always allow loading local files in there).
+- Implement a smooth and subtle Kenburns random walk to add some dynamism.
+
+## Changelog
+
+- `APR 21, 2025:` Added fade-in, fade-out and cross-fade transitions.
+- `APR 18, 2025:` Liked the idea and added a UI for more control of each scene.
+- `APR 17, 2025:` Had the idea and started the project as a simple script.
