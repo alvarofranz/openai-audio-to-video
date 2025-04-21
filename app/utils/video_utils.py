@@ -96,36 +96,49 @@ def create_video_from_scenes(
 
         log(f"Chunk #{i} final duration (with overlap if not last) = {final_duration:.2f}", "video_utils")
 
+        # Collect effects the same way as in your working code snippet
+        effects_list = []
+
+        # 1) Resize
+        effects_list.append(vfx.Resize((width, height)))
+
+        # 2) Fade in on the first scene
+        if i == 0 and fade_in > 0:
+            log(f"Applying FadeIn({fade_in:.1f}) on scene #{i}", "video_utils")
+            effects_list.append(vfx.FadeIn(fade_in))
+
+        # 3) Cross-fade in if not the first scene
+        if i > 0 and crossfade_dur > 0:
+            log(f"Applying CrossFadeIn({crossfade_dur:.1f}) on scene #{i}", "video_utils")
+            effects_list.append(vfx.CrossFadeIn(crossfade_dur))
+
+        # 4) Cross-fade out if not the last scene
+        if i < len(chunks) - 1 and crossfade_dur > 0:
+            log(f"Applying CrossFadeOut({crossfade_dur:.1f}) on scene #{i}", "video_utils")
+            effects_list.append(vfx.CrossFadeOut(crossfade_dur))
+
+        # 5) Fade out on last scene
+        if i == len(chunks) - 1 and fade_out > 0:
+            log(f"Applying FadeOut({fade_out:.1f}) on last scene", "video_utils")
+            effects_list.append(vfx.FadeOut(fade_out))
+
+        # For debugging, list out which effects we added:
+        log(f"Effects on clip #{i}: {[e.__class__.__name__ for e in effects_list]}", "video_utils")
+
         try:
+            # Now build the clip with all effects in one go
             img_clip = (
                 ImageClip(image_path)
-                .resized((width, height))
                 .with_duration(final_duration)
+                .with_effects(effects_list)
                 .with_start(scene_start)
             )
 
-            # Fade in on first scene
-            if i == 0 and fade_in > 0:
-                log(f"Applying FadeIn({fade_in:.1f}) on scene #{i}", "video_utils")
-                img_clip = img_clip.fx(vfx.fadein, fade_in)
-
-            # Cross-fade in if not first scene
-            if i > 0 and crossfade_dur > 0:
-                log(f"Applying CrossFadeIn({crossfade_dur:.1f}) on scene #{i}", "video_utils")
-                img_clip = img_clip.fx(vfx.crossfadein, crossfade_dur)
-
-            # Cross-fade out if not last scene
-            if i < len(chunks) - 1 and crossfade_dur > 0:
-                log(f"Applying CrossFadeOut({crossfade_dur:.1f}) on scene #{i}", "video_utils")
-                img_clip = img_clip.fx(vfx.crossfadeout, crossfade_dur)
-
-            # Fade out on last scene
-            if i == len(chunks) - 1 and fade_out > 0:
-                log(f"Applying FadeOut({fade_out:.1f}) on last scene", "video_utils")
-                img_clip = img_clip.fx(vfx.fadeout, fade_out)
-
             scene_clips.append(img_clip)
-            log(f"Clip #{i} built => base_duration={base_duration:.2f}, final_duration={final_duration:.2f}", "video_utils")
+            log(
+                f"Clip #{i} built => base_duration={base_duration:.2f}, final_duration={final_duration:.2f}",
+                "video_utils"
+            )
         except Exception as e:
             log(f"Error creating image clip #{i}: {e}", "video_utils")
             raise

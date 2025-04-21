@@ -2,7 +2,7 @@ WORDS_PER_SCENE = 75
 TEXT_MODEL       = "o4-mini"
 VIDEO_SIZE       = "1792x1024"
 CROSSFADE_DUR    = 4.0
-FADE_IN          = 2.0
+FADE_IN          = 1.5
 FADE_OUT         = 2.0
 
 IMAGE_PROMPT_STYLE = (
