@@ -1,6 +1,9 @@
 WORDS_PER_SCENE = 75
-TEXT_MODEL = "o4-mini"
-VIDEO_SIZE = "1792x1024"
+TEXT_MODEL       = "o4-mini"
+VIDEO_SIZE       = "1792x1024"
+CROSSFADE_DUR    = 4.0
+FADE_IN          = 1.5
+FADE_OUT         = 2.0
 
 IMAGE_PROMPT_STYLE = (
 """A cinematic illustration with full bleed that fills the entire 16:9 frame rendered in vivid beautiful scene, where the aesthetic is whimsical and magical, evoking a deep connection with nature and the overall tone is dreamlike and nostalgic, blending serene beauty with a touch of lighthearted magic. The style emphasizes detailed environments and elements, and an atmosphere filled with quiet wonder and subtle enchantment."""
