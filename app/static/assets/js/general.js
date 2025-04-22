@@ -1,6 +1,7 @@
 document.addEventListener('DOMContentLoaded', function() {
 
-    const uploadSection = document.getElementById('upload-section');
+    // ====== DOM references ======
+    const initialUIContainer = document.getElementById('initial-ui-container');
     const audioFileInput = document.getElementById('audio-file-input');
     const uploadBtn = document.getElementById('upload-btn');
 
@@ -28,14 +29,38 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const mainHeader = document.querySelector('header h1');
 
-    const settingsForm = document.getElementById('settings-form');
+    // Form fields
     const wordsPerSceneInput = document.getElementById('words-per-scene');
     const textModelInput = document.getElementById('text-model');
     const sizeSelect = document.getElementById('size-select');
     const imagePromptStyleTextarea = document.getElementById('image-prompt-style');
-    const charactersPromptStyleTextarea = document.getElementById('characters-prompt-style'); // NEW
+    const charactersPromptStyleTextarea = document.getElementById('characters-prompt-style');
     const imagePreprocessingPromptTextarea = document.getElementById('image-preprocessing-prompt');
 
+    // Crop overlay references
+    const localImageCropModal = document.getElementById('local-image-crop-modal');
+    const localImagePreview = document.getElementById('local-image-preview');
+    const cropRect = document.getElementById('crop-rect');
+    const cropCancelBtn = document.getElementById('crop-cancel');
+    const cropConfirmBtn = document.getElementById('crop-confirm');
+
+    // State for local image cropping
+    let originalFile = null;    // The raw File object user selected
+    let localImageSceneIndex = null;
+    let displayedImgWidth = 0;   // actual rendered width in px
+    let displayedImgHeight = 0;  // actual rendered height in px
+
+    // The crop rectangle position & size (in displayed-image coords)
+    let rectX = 0;
+    let rectY = 0;
+    let rectW = 100;
+    let rectH = 100;
+
+    let dragging = false;
+    let dragOffsetX = 0;
+    let dragOffsetY = 0;
+
+    // ====== Other global states ======
     let currentJobId = null;
     let totalScenes = 0;
     let imagesGenerated = 0;
@@ -45,7 +70,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let uploadAbortController = null;
     let chunksData = [];
 
-    /*************** Fade utility ***************/
+    // ====== Fade utilities ======
     function fadeOut(element, duration = 500) {
         let start = null;
         function animate(timestamp) {
@@ -61,7 +86,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         requestAnimationFrame(animate);
     }
-
     function fadeIn(element, duration = 500) {
         element.style.opacity = 0;
         element.style.display = 'block';
@@ -77,9 +101,8 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         requestAnimationFrame(animate);
     }
-    /********************************************/
 
-    // -------------- EVENT: "Use this audio" --------------
+    // ====== Audio upload flow ======
     uploadBtn.addEventListener('click', async () => {
         if (!audioFileInput.files.length) {
             alert("Please select an audio file first.");
@@ -89,13 +112,16 @@ document.addEventListener('DOMContentLoaded', function() {
         formData.append('audio', audioFileInput.files[0]);
         formData.append('words_per_scene', wordsPerSceneInput.value.trim());
         formData.append('text_model', textModelInput.value.trim());
-        formData.append('size', sizeSelect.value);
+        formData.append('size', sizeSelect.value.trim());
         formData.append('image_prompt_style', imagePromptStyleTextarea.value);
-        formData.append('characters_prompt_style', charactersPromptStyleTextarea.value); // NEW
+        formData.append('characters_prompt_style', charactersPromptStyleTextarea.value);
         formData.append('image_preprocessing_prompt', imagePreprocessingPromptTextarea.value);
+        formData.append('fade_in', document.getElementById('fade-in').value);
+        formData.append('fade_out', document.getElementById('fade-out').value);
+        formData.append('crossfade_dur', document.getElementById('crossfade-dur').value);
 
-        settingsForm.style.display = 'none';
-        uploadSection.style.display = 'none';
+        // Hide the entire initial UI
+        initialUIContainer.style.display = 'none';
         uploadingSection.style.display = 'block';
         uploadingFeedback.textContent = "Uploading audio...";
         userCanceledMidUpload = false;
@@ -135,7 +161,7 @@ document.addEventListener('DOMContentLoaded', function() {
             chunkProcessingStatus.textContent = 'Processing chunks...';
 
             for (let i = 0; i < totalScenes; i++) {
-                const { index, raw_text } = data.chunks[i];
+                const { index } = data.chunks[i];
                 const sceneCard = createSceneCard(index);
                 scenesContainer.appendChild(sceneCard);
                 chunkProcessingStatus.textContent = `Processing chunk ${i + 1} of ${totalScenes}...`;
@@ -144,7 +170,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     resetUI();
                     return;
                 }
-                fillPromptTab(sceneCard, finalPrompt); // fill text area with prompt
+                fillPromptTab(sceneCard, finalPrompt);
             }
             chunkProcessingStatus.style.display = 'none';
             videoGenerationSection.style.display = 'block';
@@ -160,7 +186,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // -------------- CANCEL mid-upload --------------
     uploadCancelBtn.addEventListener('click', () => {
         userCanceledMidUpload = true;
         if (uploadAbortController) {
@@ -169,13 +194,13 @@ document.addEventListener('DOMContentLoaded', function() {
         resetUI();
     });
 
-    // -------------- CREATE SCENE CARD --------------
+    // ====== Scenes & prompts ======
     function createSceneCard(sceneIndex) {
         const sceneCard = document.createElement('div');
         sceneCard.className = 'scene-card';
         sceneCard.id = `scene-card-${sceneIndex}`;
 
-        // TABS
+        // Tabs
         const tabsContainer = document.createElement('div');
         tabsContainer.className = 'tabs-container';
 
@@ -190,18 +215,16 @@ document.addEventListener('DOMContentLoaded', function() {
         tabsContainer.appendChild(tabBtnPrompt);
         tabsContainer.appendChild(tabBtnText);
 
-        // TAB CONTENTS
+        // Tab contents
         const tabPromptContent = document.createElement('div');
         tabPromptContent.className = 'tab-content tab-content-prompt active';
         const textArea = document.createElement('textarea');
         textArea.value = "Generating sequence prompt...";
         textArea.disabled = true;
 
-        // Animate textarea height on focus/blur
         textArea.addEventListener('focus', adjustTextareaHeight);
         textArea.addEventListener('input', adjustTextareaHeight);
         textArea.addEventListener('blur', resetTextareaHeight);
-
         tabPromptContent.appendChild(textArea);
 
         const tabSceneTextContent = document.createElement('div');
@@ -210,21 +233,34 @@ document.addEventListener('DOMContentLoaded', function() {
         sceneTextBlock.className = 'scene-text-block';
         tabSceneTextContent.appendChild(sceneTextBlock);
 
-        // FIGURE (IMAGE + CAPTION)
+        // Figure
         const figureEl = document.createElement('figure');
         const imgEl = document.createElement('img');
         imgEl.src = '/static/assets/img/placeholder.png';
+
         const figCaption = document.createElement('figcaption');
         const regenBtn = document.createElement('button');
         regenBtn.textContent = 'Generate';
         regenBtn.classList.add('regenerate-btn');
         regenBtn.disabled = true;
-        regenBtn.addEventListener('click', () => handleGenerateImage(sceneIndex, textArea, imgEl, regenBtn));
+        regenBtn.addEventListener('click', () =>
+            handleGenerateImage(sceneIndex, textArea, imgEl, regenBtn)
+        );
+
+        const selectLocalBtn = document.createElement('button');
+        selectLocalBtn.textContent = 'Select Image';
+        selectLocalBtn.disabled = true;
+        selectLocalBtn.addEventListener('click', () =>
+            handleSelectLocalImage(sceneIndex, imgEl, regenBtn, selectLocalBtn)
+        );
+
         figCaption.appendChild(regenBtn);
+        figCaption.appendChild(selectLocalBtn);
+
         figureEl.appendChild(imgEl);
         figureEl.appendChild(figCaption);
 
-        // CARD CONTENT WRAPPER
+        // Container
         const cardContent = document.createElement('div');
         cardContent.className = 'scene-card-content';
         const tabContentsContainer = document.createElement('div');
@@ -238,7 +274,7 @@ document.addEventListener('DOMContentLoaded', function() {
         cardContent.appendChild(figureEl);
         sceneCard.appendChild(cardContent);
 
-        // Switch tabs on click
+        // Tab switching
         tabBtnPrompt.addEventListener('click', () => {
             tabBtnPrompt.classList.add('active');
             tabBtnText.classList.remove('active');
@@ -252,24 +288,10 @@ document.addEventListener('DOMContentLoaded', function() {
             tabSceneTextContent.classList.add('active');
         });
 
-        // Fill scene text
         fillSceneText(sceneIndex, sceneTextBlock);
         return sceneCard;
     }
 
-    // -------------- ADJUST TEXTAREA ON FOCUS/INPUT --------------
-    function adjustTextareaHeight(e) {
-        const area = e.target;
-        area.style.height = 'auto'; // reset first
-        area.style.height = area.scrollHeight + 'px';
-    }
-    // -------------- RESET TEXTAREA ON BLUR --------------
-    function resetTextareaHeight(e) {
-        // revert to original 200px
-        e.target.style.height = '200px';
-    }
-
-    // -------------- FILL SCENE TEXT --------------
     function fillSceneText(sceneIndex, sceneTextBlock) {
         const chunk = chunksData.find(c => c.index === sceneIndex);
         if (!chunk) return;
@@ -298,7 +320,17 @@ document.addEventListener('DOMContentLoaded', function() {
         return parts.join(" ");
     }
 
-    // -------------- PREPROCESS CHUNK --------------
+    // ====== Textarea auto-height ======
+    function adjustTextareaHeight(e) {
+        const area = e.target;
+        area.style.height = 'auto';
+        area.style.height = area.scrollHeight + 'px';
+    }
+    function resetTextareaHeight(e) {
+        e.target.style.height = '200px';
+    }
+
+    // ====== Preprocess chunk ======
     async function preprocessChunk(jobId, chunkIndex) {
         const resp = await fetch('/preprocess-chunk', {
             method: 'POST',
@@ -309,8 +341,6 @@ document.addEventListener('DOMContentLoaded', function() {
         if (data.error) throw data.error;
         return data.preprocessed_prompt;
     }
-
-    // -------------- FILL PROMPT TAB ALWAYS --------------
     function fillPromptTab(sceneCard, finalPrompt) {
         const promptTab = sceneCard.querySelector('.tab-content-prompt textarea');
         if (promptTab) {
@@ -319,21 +349,22 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // -------------- ENABLE GENERATE BUTTONS --------------
+    // ====== Enable scene card buttons ======
     function enableGenerateButtons() {
-        const allBtns = document.querySelectorAll('.regenerate-btn');
-        allBtns.forEach(b => {
-            b.disabled = false;
-            b.textContent = 'Generate';
+        const allCards = document.querySelectorAll('.scene-card');
+        allCards.forEach(card => {
+            const regenBtn = card.querySelector('.regenerate-btn');
+            const selectLocalBtn = card.querySelector('button:nth-of-type(2)');
+            if (regenBtn) regenBtn.disabled = false;
+            if (selectLocalBtn) selectLocalBtn.disabled = false;
         });
     }
 
-    // -------------- GENERATE IMAGE --------------
+    // ====== AI Generate Image ======
     async function handleGenerateImage(sceneIndex, textArea, img, regenBtn, attempt = 1) {
         if (isGeneratingImage && attempt === 1) return;
         isGeneratingImage = true;
-        const allBtns = document.querySelectorAll('.regenerate-btn');
-        allBtns.forEach(b => { b.disabled = true; });
+        disableAllImageButtons();
         regenBtn.textContent = `Generating... (attempt ${attempt})`;
 
         try {
@@ -356,6 +387,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     regenBtn.disabled = false;
                     regenBtn.textContent = 'Generate';
                     isGeneratingImage = false;
+                    enableAllImageButtons();
                     return;
                 }
             } else {
@@ -365,28 +397,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     sceneGenerated[sceneIndex] = true;
                     imagesGenerated++;
                 }
-                // re-enable
-                allBtns.forEach(btn => {
-                    btn.disabled = false;
-                    if (btn === regenBtn) {
-                        btn.textContent = 'Regenerate';
-                    } else {
-                        if (!btn.textContent.includes('Regenerate')) {
-                            btn.textContent = 'Generate';
-                        }
-                    }
-                });
+                regenBtn.textContent = 'Regenerate';
                 isGeneratingImage = false;
-                const nextIndex = sceneIndex + 1;
-                if (nextIndex < totalScenes && !sceneGenerated[nextIndex]) {
-                    const nextCard = document.getElementById(`scene-card-${nextIndex}`);
-                    if (nextCard) {
-                        const nextTextArea = nextCard.querySelector('.tab-content-prompt textarea');
-                        const nextImg = nextCard.querySelector('img');
-                        const nextBtn = nextCard.querySelector('.regenerate-btn');
-                        await handleGenerateImage(nextIndex, nextTextArea, nextImg, nextBtn);
-                    }
-                }
+                enableAllImageButtons();
                 if (imagesGenerated >= totalScenes) {
                     generateVideoBtn.disabled = false;
                 }
@@ -400,12 +413,192 @@ document.addEventListener('DOMContentLoaded', function() {
                 regenBtn.disabled = false;
                 regenBtn.textContent = 'Generate';
                 isGeneratingImage = false;
+                enableAllImageButtons();
                 return;
             }
         }
     }
 
-    // -------------- GENERATE VIDEO --------------
+    // ====== Local Image + custom bounding-box approach with fixed aspect ratio ======
+    let aspectRatio = 1.0; // final video size ratio = (width / height)
+
+    function handleSelectLocalImage(sceneIndex, imgEl, regenBtn, selectLocalBtn) {
+        if (isGeneratingImage) return;
+        localImageSceneIndex = sceneIndex;
+
+        // parse ratio from sizeSelect => e.g. "1792x1024"
+        const [twStr, thStr] = sizeSelect.value.split('x');
+        const tw = parseInt(twStr, 10) || 1792;
+        const th = parseInt(thStr, 10) || 1024;
+        aspectRatio = tw / th;
+
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = 'image/*';
+
+        fileInput.onchange = () => {
+            if (!fileInput.files || !fileInput.files.length) return;
+            originalFile = fileInput.files[0];
+            if (!originalFile) return;
+
+            localImageCropModal.style.display = 'flex';
+            // Initially zero out bounding box
+            rectX = 0; rectY = 0;
+            rectW = 100; rectH = 100;
+            dragging = false;
+            dragOffsetX = 0; dragOffsetY = 0;
+
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                localImagePreview.src = ev.target.result;
+            };
+            reader.readAsDataURL(originalFile);
+        };
+        fileInput.click();
+    }
+
+    localImagePreview.onload = () => {
+        displayedImgWidth = localImagePreview.clientWidth;
+        displayedImgHeight = localImagePreview.clientHeight;
+
+        // Decide bounding box so it matches aspectRatio = rectW / rectH
+        // and fits fully in displayedImgWidth x displayedImgHeight,
+        // filling either entire width or entire height.
+        const displayedRatio = displayedImgWidth / displayedImgHeight;
+        if (displayedRatio > aspectRatio) {
+            // fill entire height
+            rectH = displayedImgHeight;
+            rectW = Math.floor(rectH * aspectRatio);
+        } else {
+            // fill entire width
+            rectW = displayedImgWidth;
+            rectH = Math.floor(rectW / aspectRatio);
+        }
+
+        // Center the rectangle
+        rectX = Math.floor((displayedImgWidth - rectW) / 2);
+        rectY = Math.floor((displayedImgHeight - rectH) / 2);
+
+        updateCropRect();
+    };
+
+    // Drag
+    cropRect.addEventListener('mousedown', (e) => {
+        dragging = true;
+        dragOffsetX = e.offsetX;
+        dragOffsetY = e.offsetY;
+    });
+    document.addEventListener('mouseup', () => {
+        dragging = false;
+    });
+    document.addEventListener('mousemove', (e) => {
+        if (!dragging) return;
+        e.preventDefault();
+
+        const previewRect = localImagePreview.getBoundingClientRect();
+        let newLeft = e.clientX - previewRect.left - dragOffsetX;
+        let newTop = e.clientY - previewRect.top - dragOffsetY;
+
+        // clamp
+        if (newLeft < 0) newLeft = 0;
+        if (newTop < 0) newTop = 0;
+        if (newLeft + rectW > displayedImgWidth) {
+            newLeft = displayedImgWidth - rectW;
+        }
+        if (newTop + rectH > displayedImgHeight) {
+            newTop = displayedImgHeight - rectH;
+        }
+
+        rectX = newLeft;
+        rectY = newTop;
+        updateCropRect();
+    });
+
+    function updateCropRect() {
+        cropRect.style.left = rectX + 'px';
+        cropRect.style.top = rectY + 'px';
+        cropRect.style.width = rectW + 'px';
+        cropRect.style.height = rectH + 'px';
+    }
+
+    cropCancelBtn.addEventListener('click', () => {
+        localImageCropModal.style.display = 'none';
+    });
+
+    cropConfirmBtn.addEventListener('click', async () => {
+        if (!originalFile) {
+            localImageCropModal.style.display = 'none';
+            return;
+        }
+
+        isGeneratingImage = true;
+        disableAllImageButtons();
+
+        const formData = new FormData();
+        formData.append('job_id', currentJobId);
+        formData.append('scene_index', localImageSceneIndex);
+        formData.append('image_file', originalFile);
+
+        // bounding box in displayed coords
+        formData.append('box_x', rectX);
+        formData.append('box_y', rectY);
+        formData.append('box_w', rectW);
+        formData.append('box_h', rectH);
+        formData.append('displayed_w', displayedImgWidth);
+        formData.append('displayed_h', displayedImgHeight);
+
+        try {
+            const resp = await fetch('/upload-local-image', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await resp.json();
+            if (data.error) {
+                console.error("Local image upload error:", data.error);
+                alert(data.error);
+                isGeneratingImage = false;
+                enableAllImageButtons();
+                localImageCropModal.style.display = 'none';
+                return;
+            }
+
+            // success
+            const sceneCard = document.getElementById(`scene-card-${localImageSceneIndex}`);
+            if (sceneCard) {
+                const figureEl = sceneCard.querySelector('figure img');
+                figureEl.src = data.image_url + '?t=' + Date.now();
+            }
+            if (!sceneGenerated[localImageSceneIndex]) {
+                sceneGenerated[localImageSceneIndex] = true;
+                imagesGenerated++;
+            }
+            if (imagesGenerated >= totalScenes) {
+                generateVideoBtn.disabled = false;
+            }
+        } catch (err) {
+            console.error("Error uploading local image:", err);
+            alert("Error uploading/cropping image");
+        }
+
+        isGeneratingImage = false;
+        enableAllImageButtons();
+        localImageCropModal.style.display = 'none';
+    });
+
+    function disableAllImageButtons() {
+        const allRegen = document.querySelectorAll('.regenerate-btn');
+        const allSelect = document.querySelectorAll('.scene-card figcaption button:nth-of-type(2)');
+        allRegen.forEach(btn => { btn.disabled = true; });
+        allSelect.forEach(btn => { btn.disabled = true; });
+    }
+    function enableAllImageButtons() {
+        const allRegen = document.querySelectorAll('.regenerate-btn');
+        const allSelect = document.querySelectorAll('.scene-card figcaption button:nth-of-type(2)');
+        allRegen.forEach(btn => { btn.disabled = false; });
+        allSelect.forEach(btn => { btn.disabled = false; });
+    }
+
+    // ====== Generate Video ======
     generateVideoBtn.addEventListener('click', async () => {
         generateVideoBtn.style.display = 'none';
         const sceneCards = Array.from(document.querySelectorAll('.scene-card'));
@@ -444,7 +637,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }, delay + 300);
     });
 
-    // -------------- RESET UI --------------
+    // ====== Reset UI ======
     function resetUI() {
         currentJobId = null;
         totalScenes = 0;
@@ -454,12 +647,18 @@ document.addEventListener('DOMContentLoaded', function() {
         sceneGenerated = [];
         chunksData = [];
 
-        mainHeader.textContent = "Make your story alive";
-        settingsForm.style.display = 'block';
-        wordsPerSceneInput.value = '40';
-        textModelInput.value = 'o4-mini';
-        sizeSelect.value = '1792x1024';
-        uploadSection.style.display = 'block';
+        // Show initial UI again
+        initialUIContainer.style.display = 'block';
+
+        // Reset form to the default or blank
+        wordsPerSceneInput.value = '{{ default_words_per_scene }}';
+        textModelInput.value = '{{ default_text_model }}';
+        sizeSelect.value = '{{ default_video_size }}';
+        imagePromptStyleTextarea.value = `{{ default_image_prompt_style|replace("\n", "\\n") }}`;
+        charactersPromptStyleTextarea.value = `{{ default_characters_prompt_style|replace("\n", "\\n") }}`;
+        imagePreprocessingPromptTextarea.value = `{{ default_image_preprocessing_prompt|replace("\n", "\\n") }}`;
+        audioFileInput.value = '';
+
         uploadingSection.style.display = 'none';
         audioProcessingSection.style.display = 'none';
         storyDescription.style.display = 'none';
@@ -469,7 +668,6 @@ document.addEventListener('DOMContentLoaded', function() {
         chunkProcessingStatus.style.display = 'none';
 
         scenesContainer.innerHTML = '';
-        audioFileInput.value = '';
         uploadedAudio.src = '';
         whisperLoading.style.display = 'none';
         generateVideoBtn.disabled = true;
@@ -479,5 +677,7 @@ document.addEventListener('DOMContentLoaded', function() {
         finalVideoSource.src = '';
         finalVideo.load();
         finalVideoPathEl.textContent = '';
+
+        mainHeader.textContent = "Make your story alive";
     }
 });

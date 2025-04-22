@@ -13,8 +13,6 @@ from app.utils.prompt_utils import (
     preprocess_story_data,
     generate_title_and_description
 )
-
-# Import your default values
 from defaults import (
     WORDS_PER_SCENE,
     TEXT_MODEL,
@@ -26,17 +24,13 @@ from defaults import (
     FADE_OUT,
     CROSSFADE_DUR
 )
+from app.utils.image_utils import process_local_image
 
 main_bp = Blueprint("main", __name__)
-
 CURRENT_JOBS = {}
 
 @main_bp.route("/", methods=["GET"])
 def index():
-    """
-    Pass the defaults from defaults.py into the template,
-    so index.html can auto-populate those fields.
-    """
     return render_template(
         "index.html",
         default_words_per_scene=WORDS_PER_SCENE,
@@ -62,7 +56,6 @@ def upload_audio():
     if not file:
         return jsonify({"error": "No file uploaded"}), 400
 
-    # Grab user input
     words_per_scene = request.form.get("words_per_scene", "40").strip()
     text_model = request.form.get("text_model", "o4-mini").strip()
     size = request.form.get("size", "1792x1024").strip()
@@ -73,7 +66,6 @@ def upload_audio():
     fade_out_str = request.form.get("fade_out", f"{FADE_OUT}").strip()
     crossfade_str = request.form.get("crossfade_dur", f"{CROSSFADE_DUR}").strip()
 
-    # Parse video size or fallback
     try:
         width_str, height_str = size.lower().split("x")
         video_width = int(width_str)
@@ -82,42 +74,34 @@ def upload_audio():
         video_width = 1792
         video_height = 1024
 
-    # Parse words_per_scene or fallback
     try:
         wps = int(words_per_scene)
     except:
         wps = 40
 
-    # Parse fade/crossfade floats or fallback
     try:
         fade_in_val = float(fade_in_str)
     except:
         fade_in_val = FADE_IN
-
     try:
         fade_out_val = float(fade_out_str)
     except:
         fade_out_val = FADE_OUT
-
     try:
         crossfade_val = float(crossfade_str)
     except:
         crossfade_val = CROSSFADE_DUR
 
-    # Build a short unique folder name based on the audio file
     audio_basename = os.path.splitext(os.path.basename(file.filename))[0]
     short_uniq = str(uuid.uuid4())[:6]
     job_id = f"{audio_basename}-{short_uniq}"
 
-    # Projects folder
     job_folder = os.path.join("app", "static", "projects", job_id)
     os.makedirs(job_folder, exist_ok=True)
 
-    # Save the audio file
     audio_path = os.path.join(job_folder, file.filename)
     file.save(audio_path)
 
-    # Transcribe
     try:
         whisper_data = transcribe_audio(client, audio_path)
     except Exception as e:
@@ -125,18 +109,12 @@ def upload_audio():
 
     full_text = whisper_data.text.strip()
 
-    # Title & description
     td = generate_title_and_description(client, full_text, text_model)
-
-    # Story ingredients
     story_ingredients = preprocess_story_data(client, full_text, text_model, characters_prompt_style)
-
-    # Chunk transcript
     chunks = chunk_transcript(whisper_data, wps)
     if not chunks:
         return jsonify({"error": "No scenes could be created."}), 500
 
-    # Store everything in memory
     CURRENT_JOBS[job_id] = {
         "audio_path": audio_path,
         "full_text": full_text,
@@ -159,7 +137,6 @@ def upload_audio():
         "crossfade_dur": crossfade_val
     }
 
-    # Return initial job info
     return jsonify({
         "job_id": job_id,
         "title": td["title"],
@@ -227,6 +204,11 @@ def generate_image_route():
     images_folder = os.path.join(job_data["job_folder"], "images")
     os.makedirs(images_folder, exist_ok=True)
 
+    existing_image_path = os.path.join(images_folder, f"scene_{scene_index}.png")
+    if os.path.isfile(existing_image_path):
+        renamed_path = os.path.join(images_folder, f"scene_{scene_index}_unused-{uuid.uuid4().hex[:6]}.png")
+        os.rename(existing_image_path, renamed_path)
+
     job_data["prompts"][scene_index] = new_prompt
     image_path = generate_image_for_scene(
         client=client,
@@ -246,8 +228,69 @@ def generate_image_route():
         return jsonify({"error": "Failed to generate image"}), 500
 
     job_data["images"][scene_index] = image_path
-
     rel_path = image_path.split("app/static/")[-1]
+    image_url = f"/static/{rel_path}"
+    return jsonify({"image_url": image_url})
+
+@main_bp.route("/upload-local-image", methods=["POST"])
+def upload_local_image():
+    job_id = request.form.get("job_id")
+    scene_index = request.form.get("scene_index")
+    if not job_id or scene_index is None:
+        return jsonify({"error": "Missing job_id or scene_index"}), 400
+
+    job_data = CURRENT_JOBS.get(job_id)
+    if not job_data:
+        return jsonify({"error": "No such job"}), 400
+
+    image_file = request.files.get("image_file")
+    if not image_file:
+        return jsonify({"error": "No image file provided"}), 400
+
+    # The bounding box in displayed coords
+    box_x_str = request.form.get("box_x", "0")
+    box_y_str = request.form.get("box_y", "0")
+    box_w_str = request.form.get("box_w", "0")
+    box_h_str = request.form.get("box_h", "0")
+    disp_w_str = request.form.get("displayed_w", "0")
+    disp_h_str = request.form.get("displayed_h", "0")
+
+    try:
+        box_x = float(box_x_str)
+        box_y = float(box_y_str)
+        box_w = float(box_w_str)
+        box_h = float(box_h_str)
+        disp_w = float(disp_w_str)
+        disp_h = float(disp_h_str)
+    except:
+        return jsonify({"error": "Invalid bounding box data"}), 400
+
+    images_folder = os.path.join(job_data["job_folder"], "images")
+    os.makedirs(images_folder, exist_ok=True)
+
+    existing_path = os.path.join(images_folder, f"scene_{scene_index}.png")
+    if os.path.isfile(existing_path):
+        renamed_path = os.path.join(images_folder, f"scene_{scene_index}_unused-{uuid.uuid4().hex[:6]}.png")
+        os.rename(existing_path, renamed_path)
+
+    output_path = os.path.join(images_folder, f"scene_{scene_index}.png")
+    try:
+        # The final video dimension is job_data["video_width"] x job_data["video_height"]
+        process_local_image(
+            image_file.stream,
+            output_path,
+            job_data["video_width"],
+            job_data["video_height"],
+            crop_x=box_x, crop_y=box_y,
+            crop_w=box_w, crop_h=box_h,
+            displayed_w=disp_w, displayed_h=disp_h
+        )
+    except Exception as e:
+        return jsonify({"error": f"Could not process/crop image: {str(e)}"}), 500
+
+    job_data["images"][int(scene_index)] = output_path
+
+    rel_path = output_path.split("app/static/")[-1]
     image_url = f"/static/{rel_path}"
     return jsonify({"image_url": image_url})
 
