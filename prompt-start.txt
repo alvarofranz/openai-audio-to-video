@@ -1,0 +1,19 @@
+I am working on a Python + Flask webapp which serves as a local tool to convert audio files into movies, by processing the narrated audio into a set of sequences and adding one image per sequence (via open ai or from a local selection) and then compose a final video with MoviePy.
+
+I will provide you with all the files, for context, and then I will ask for some modifications. You need to reply with the full modified files (just the ones that need to be edited, you can ignore any file that does not need any modification). Please do not break any existing logic, and pay attention to details, so you give me a perfect final working version with all requested modifications.
+
+File /.env
+OPENAI_API_KEY=sk-proj-a
+
+File /defaults.py
+WORDS_PER_SCENE = 75
+TEXT_MODEL       = "o4-mini"
+IMAGES_AI_REQUESTED_SIZE = "1792x1024"
+VIDEO_SIZE       = "1920x1080"
+CROSSFADE_DUR    = 4.0
+FADE_IN          = 1.5
+FADE_OUT         = 2.0
+IMAGE_PROMPT_STYLE       = "A cinematic illustration..."
+CHARACTERS_PROMPT_STYLE  = "There are multiple characters in my story..."
+IMAGE_PREPROCESSING_PROMPT = "You are a prompt preprocessor specialized in generating prompts for images..."
+

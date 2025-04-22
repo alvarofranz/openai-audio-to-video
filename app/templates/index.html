@@ -16,11 +16,6 @@
             rel="stylesheet"
             href="{{ url_for('static', filename='assets/css/styles.css') }}"
     >
-
-    <!-- Main JS -->
-    <script
-            src="{{ url_for('static', filename='assets/js/general.js') }}"
-    ></script>
 </head>
 <body>
 <header>
@@ -53,27 +48,26 @@
                             class="medium-input"
                     >
                 </div>
+            </div>
+
+            <!-- Separate size selectors: AI image size & final video size -->
+            <div class="form-section">
+                <div class="form-group">
+                    <label for="ai-size-select">AI Image Size:</label>
+                    <select id="ai-size-select">
+                        <!-- For now, just populate the default as a single option -->
+                        <option value="{{ default_images_ai_requested_size }}" selected>
+                            {{ default_images_ai_requested_size }}
+                        </option>
+                    </select>
+                </div>
 
                 <div class="form-group">
-                    <label for="size-select">Size:</label>
-                    <select id="size-select">
-                        <option
-                                value="1024x1024"
-                                {% if default_video_size == "1024x1024" %}selected{% endif %}
-                        >
-                        1024x1024
-                        </option>
-                        <option
-                                value="1792x1024"
-                                {% if default_video_size == "1792x1024" %}selected{% endif %}
-                        >
-                        1792x1024
-                        </option>
-                        <option
-                                value="1024x1792"
-                                {% if default_video_size == "1024x1792" %}selected{% endif %}
-                        >
-                        1024x1792
+                    <label for="video-size">Final Video Size:</label>
+                    <select id="video-size">
+                        <!-- Default 1920x1080, no need for more options -->
+                        <option value="{{ default_video_size }}" selected>
+                            {{ default_video_size }}
                         </option>
                     </select>
                 </div>
@@ -147,7 +141,7 @@
                 <div class="form-group full-width">
                     <label for="image-preprocessing-prompt">Image prompt preprocessing instructions</label>
                     <p class="help-text">
-                        Base for each image prompt. Reference: [image_style], [character_types], [story_items_style], [story], [current_sequence].
+                        Base for each image prompt. You can reference placeholders like [image_style], [character_types], [story_items_style], [story], [current_sequence].
                     </p>
                     <textarea
                             id="image-preprocessing-prompt"
@@ -185,22 +179,38 @@
         <button id="upload-cancel-btn" class="red-button">Cancel</button>
     </div>
 
-    <!-- Step 2: After audio is fully uploaded & transcribed -->
+    <!-- Step 2: After audio is uploaded & transcribed -->
     <div id="audio-processing-section" style="display:none;">
         <audio controls id="uploaded-audio" class="uploaded-audio"></audio>
         <div id="whisper-loading" class="loading-feedback" style="display:none;">
             Converting audio to text...
         </div>
         <p id="story-description" class="story-description" style="display:none;"></p>
-        <p id="story-ingredients" class="story-ingredients" style="display:none; white-space:pre-wrap;"></p>
+
+        <!-- Editable story ingredients + button to generate image prompts -->
+        <div id="story-ingredients-container" style="display:none;">
+            <label>Story Ingredients:</label>
+            <textarea
+                    id="story-ingredients-textarea"
+                    class="full-width-textarea"
+                    style="min-height:150px;"
+            ></textarea>
+            <button
+                    id="generate-prompts-btn"
+                    type="button"
+                    style="margin-top:10px;"
+            >
+                Generate Image Prompts
+            </button>
+        </div>
     </div>
 
-    <!-- Step 3.5: chunk processing status -->
+    <!-- We reintroduce the chunk-processing-status div so it's not null -->
     <div id="chunk-processing-status" class="loading-feedback" style="display:none;">
         Processing chunks...
     </div>
 
-    <!-- Scenes container -->
+    <!-- Scenes container (cards for each chunk) -->
     <div id="scenes-container"></div>
 
     <!-- Generate video button & indefinite loading -->
@@ -211,8 +221,8 @@
         </div>
     </div>
 
-    <!-- Final video embed, center it, show the path -->
-    <div id="final-video-section" style="display:none;">
+    <!-- Final video embed -->
+    <div id="final-video-section" style="display:none; text-align:center;">
         <video controls id="final-video">
             <source id="final-video-source" src="" type="video/mp4">
         </video>
@@ -223,10 +233,9 @@
 <!-- Simple local image crop overlay -->
 <div class="simple-crop-overlay" id="local-image-crop-modal" style="display: none;">
     <div class="simple-crop-content">
-        <h3>Crop your image (no libraries)</h3>
+        <h3>Crop your image</h3>
         <div class="crop-container">
             <img id="local-image-preview" alt="preview" />
-            <!-- an absolutely positioned, fixed-ratio rectangle we can drag around -->
             <div id="crop-rect"></div>
         </div>
         <div class="btn-row">
@@ -235,6 +244,13 @@
         </div>
     </div>
 </div>
+
+<!-- Load JS in separate files to keep concerns clear -->
+<script src="{{ url_for('static', filename='assets/js/general.js') }}"></script>
+<script src="{{ url_for('static', filename='assets/js/audio-upload.js') }}"></script>
+<script src="{{ url_for('static', filename='assets/js/prompt-creation.js') }}"></script>
+<script src="{{ url_for('static', filename='assets/js/image-handling.js') }}"></script>
+<script src="{{ url_for('static', filename='assets/js/video-creation.js') }}"></script>
 
 </body>
 </html>

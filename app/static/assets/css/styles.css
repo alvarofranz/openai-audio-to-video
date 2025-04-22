@@ -129,6 +129,10 @@ button:disabled {
     border-radius: 6px;
 }
 
+#story-ingredients-container {
+    margin-bottom: 20px;
+}
+
 .scene-card {
     background: var(--card-bg);
     padding: 10px;
@@ -293,7 +297,7 @@ figcaption {
 }
 #crop-rect {
     position: absolute;
-    border: 2px dashed #ff0;
+    border: 2px dashed var(--color-orange);
     cursor: move;
     box-sizing: border-box;
 }

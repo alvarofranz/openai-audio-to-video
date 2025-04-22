@@ -5,6 +5,7 @@ from flask import Blueprint, render_template, request, jsonify
 from dotenv import load_dotenv
 from openai import OpenAI
 
+from app.utils.global_utils import log, pretty_print_api_response
 from app.utils.audio_utils import transcribe_audio, chunk_transcript
 from app.utils.video_utils import create_video_from_scenes
 from app.utils.prompt_utils import (
@@ -16,7 +17,8 @@ from app.utils.prompt_utils import (
 from defaults import (
     WORDS_PER_SCENE,
     TEXT_MODEL,
-    VIDEO_SIZE,
+    IMAGES_AI_REQUESTED_SIZE,  # renamed
+    VIDEO_SIZE,                 # new final video size
     IMAGE_PROMPT_STYLE,
     CHARACTERS_PROMPT_STYLE,
     IMAGE_PREPROCESSING_PROMPT,
@@ -35,7 +37,9 @@ def index():
         "index.html",
         default_words_per_scene=WORDS_PER_SCENE,
         default_text_model=TEXT_MODEL,
+        # Provide both sizes separately:
         default_video_size=VIDEO_SIZE,
+        default_images_ai_requested_size=IMAGES_AI_REQUESTED_SIZE,
         default_image_prompt_style=IMAGE_PROMPT_STYLE,
         default_characters_prompt_style=CHARACTERS_PROMPT_STYLE,
         default_image_preprocessing_prompt=IMAGE_PREPROCESSING_PROMPT,
@@ -58,7 +62,11 @@ def upload_audio():
 
     words_per_scene = request.form.get("words_per_scene", "40").strip()
     text_model = request.form.get("text_model", "o4-mini").strip()
-    size = request.form.get("size", "1792x1024").strip()
+
+    # Separate form fields for AI image request size vs. final video size:
+    images_ai_size_str = request.form.get("images_ai_requested_size", IMAGES_AI_REQUESTED_SIZE).strip()
+    video_size_str     = request.form.get("video_size", VIDEO_SIZE).strip()
+
     image_prompt_style = request.form.get("image_prompt_style", "")
     characters_prompt_style = request.form.get("characters_prompt_style", "")
     image_preprocessing_prompt = request.form.get("image_preprocessing_prompt", "")
@@ -66,13 +74,23 @@ def upload_audio():
     fade_out_str = request.form.get("fade_out", f"{FADE_OUT}").strip()
     crossfade_str = request.form.get("crossfade_dur", f"{CROSSFADE_DUR}").strip()
 
+    # Parse AI image request size
     try:
-        width_str, height_str = size.lower().split("x")
-        video_width = int(width_str)
-        video_height = int(height_str)
+        iwidth_str, iheight_str = images_ai_size_str.lower().split("x")
+        images_ai_w = int(iwidth_str)
+        images_ai_h = int(iheight_str)
     except:
-        video_width = 1792
-        video_height = 1024
+        images_ai_w = 1792
+        images_ai_h = 1024
+
+    # Parse final video size
+    try:
+        vwidth_str, vheight_str = video_size_str.lower().split("x")
+        video_width = int(vwidth_str)
+        video_height = int(vheight_str)
+    except:
+        video_width = 1920
+        video_height = 1080
 
     try:
         wps = int(words_per_scene)
@@ -102,19 +120,27 @@ def upload_audio():
     audio_path = os.path.join(job_folder, file.filename)
     file.save(audio_path)
 
+    # Transcribe with Whisper
     try:
         whisper_data = transcribe_audio(client, audio_path)
     except Exception as e:
         return jsonify({"error": f"Failed to transcribe audio: {str(e)}"}), 500
 
     full_text = whisper_data.text.strip()
+    log(f"Full Text: {full_text}", "routes")
 
+    # Title and description
     td = generate_title_and_description(client, full_text, text_model)
+
+    # Preprocess story data to get "story_ingredients"
     story_ingredients = preprocess_story_data(client, full_text, text_model, characters_prompt_style)
+
+    # Create chunks
     chunks = chunk_transcript(whisper_data, wps)
     if not chunks:
         return jsonify({"error": "No scenes could be created."}), 500
 
+    # Store job data (no auto-generation of prompts!)
     CURRENT_JOBS[job_id] = {
         "audio_path": audio_path,
         "full_text": full_text,
@@ -128,8 +154,10 @@ def upload_audio():
         "characters_prompt_style": characters_prompt_style,
         "words_per_scene": wps,
         "text_model": text_model,
-        "video_width": video_width,
+        "video_width": video_width,       # final video dimension
         "video_height": video_height,
+        "images_ai_width": images_ai_w,   # AI generation dimension
+        "images_ai_height": images_ai_h,
         "image_prompt_style": image_prompt_style,
         "image_preprocessing_prompt": image_preprocessing_prompt,
         "fade_in": fade_in_val,
@@ -137,6 +165,7 @@ def upload_audio():
         "crossfade_dur": crossfade_val
     }
 
+    # Return only job info, story ingredients, and the chunk breakdown
     return jsonify({
         "job_id": job_id,
         "title": td["title"],
@@ -163,15 +192,22 @@ def preprocess_chunk():
     data = request.json
     job_id = data.get("job_id")
     chunk_index = data.get("chunk_index")
+    new_story_ingredients = data.get("story_ingredients", None)
+
     job_data = CURRENT_JOBS.get(job_id)
     if not job_data:
         return jsonify({"error": "No such job"}), 400
+
+    # If user edited the story ingredients, update it in the job data
+    if new_story_ingredients is not None:
+        job_data["story_ingredients"] = new_story_ingredients
 
     try:
         raw_text = job_data["chunks"][chunk_index]["text"]
     except (IndexError, KeyError):
         return jsonify({"error": "Invalid chunk index"}), 400
 
+    # Generate final prompt from the updated story ingredients
     final_prompt = preprocess_image_prompt(
         client=client,
         full_story=job_data["full_text"],
@@ -206,10 +242,16 @@ def generate_image_route():
 
     existing_image_path = os.path.join(images_folder, f"scene_{scene_index}.png")
     if os.path.isfile(existing_image_path):
-        renamed_path = os.path.join(images_folder, f"scene_{scene_index}_unused-{uuid.uuid4().hex[:6]}.png")
+        renamed_path = os.path.join(
+            images_folder,
+            f"scene_{scene_index}_unused-{uuid.uuid4().hex[:6]}.png"
+        )
         os.rename(existing_image_path, renamed_path)
 
+    # Update stored prompt
     job_data["prompts"][scene_index] = new_prompt
+
+    # Generate image via DALLE using the AI-requested size
     image_path = generate_image_for_scene(
         client=client,
         story_text=job_data["full_text"],
@@ -220,8 +262,8 @@ def generate_image_route():
         image_prompt_style=job_data["image_prompt_style"],
         image_preprocessing_prompt=job_data["image_preprocessing_prompt"],
         text_model=job_data["text_model"],
-        width=job_data["video_width"],
-        height=job_data["video_height"],
+        width=job_data["images_ai_width"],     # use AI size here
+        height=job_data["images_ai_height"],
         characters_prompt_style=job_data["characters_prompt_style"]
     )
     if not image_path:
@@ -270,20 +312,27 @@ def upload_local_image():
 
     existing_path = os.path.join(images_folder, f"scene_{scene_index}.png")
     if os.path.isfile(existing_path):
-        renamed_path = os.path.join(images_folder, f"scene_{scene_index}_unused-{uuid.uuid4().hex[:6]}.png")
+        renamed_path = os.path.join(
+            images_folder,
+            f"scene_{scene_index}_unused-{uuid.uuid4().hex[:6]}.png"
+        )
         os.rename(existing_path, renamed_path)
 
     output_path = os.path.join(images_folder, f"scene_{scene_index}.png")
+
     try:
-        # The final video dimension is job_data["video_width"] x job_data["video_height"]
+        # Final video dimension is job_data["video_width"] x job_data["video_height"]
         process_local_image(
             image_file.stream,
             output_path,
             job_data["video_width"],
             job_data["video_height"],
-            crop_x=box_x, crop_y=box_y,
-            crop_w=box_w, crop_h=box_h,
-            displayed_w=disp_w, displayed_h=disp_h
+            crop_x=box_x,
+            crop_y=box_y,
+            crop_w=box_w,
+            crop_h=box_h,
+            displayed_w=disp_w,
+            displayed_h=disp_h
         )
     except Exception as e:
         return jsonify({"error": f"Could not process/crop image: {str(e)}"}), 500
