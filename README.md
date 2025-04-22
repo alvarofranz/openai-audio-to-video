@@ -61,11 +61,12 @@ python create_video.py ./demo/audio-file.mp3
 ## Roadmap
 
 - Integrate the new GPT-4o images API as soon as it comes out.
-- Have a "project library of images". When generating an image, copy it to "the library", add a button to the image that allows "select from library" (always allow loading local files in there).
+- Allow editing generated images and provide previous scene images for context, waiting on gpt-4o release to see options.
 - Implement a smooth and subtle Kenburns random walk to add some dynamism.
 
 ## Changelog
 
+- `APR 22, 2025:` Added feature to select local image and image cropping.
 - `APR 21, 2025:` Added fade-in, fade-out and cross-fade transitions.
 - `APR 18, 2025:` Liked the idea and added a UI for more control of each scene.
 - `APR 17, 2025:` Had the idea and started the project as a simple script.
