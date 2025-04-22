@@ -1,6 +1,7 @@
 WORDS_PER_SCENE = 75
 TEXT_MODEL       = "o4-mini"
-VIDEO_SIZE       = "1792x1024"
+IMAGES_AI_REQUESTED_SIZE = "1792x1024"
+VIDEO_SIZE       = "1920x1080"
 CROSSFADE_DUR    = 4.0
 FADE_IN          = 1.5
 FADE_OUT         = 2.0
@@ -11,8 +12,8 @@ IMAGE_PROMPT_STYLE = (
 
 CHARACTERS_PROMPT_STYLE = (
 """Hay dos tipos principales de personajes en las historias y debes identificarlos correctamente según el contexto.
-Pueden ser "humanos" o pueden ser "magikitos: duendes de porcelana humanoides vivientes, con orejas puntiagudas élficas y piel de porcelana de color melocotón‑beige claro" que visten ropas imperfectas hechas con retazos de tela vieja. Para este tipo de personajes, es muy importante que incluyas esas palabras clave: "duendes de porcelana humanoides vivientes, con orejas puntiagudas élficas y piel de porcelana de color melocotón‑beige claro" sin omitir nada ni simplificar el lenguaje. Extremadamente importante incluirlo todo para este tipo de personaje "duende de porcelana humanoide viviente, con orejas puntiagudas élficas y piel de porcelana de color melocotón‑beige claro". Cuando sea un humano, debes dejar claro que es un humano, simple. Los dos tipos de personajes son claramente diferenciables.
-Cualquier otra criatura que no sea un humano o "duende de porcelana humanoide vivientes, con orejas puntiagudas élficas y piel de porcelana de color melocotón‑beige claro" se diferenciará claramente; pueden ser aves, ranas, insectos... para estos utiliza la descripción que prefieras, siempre presentando criaturas mágicas agradables, amables y acogedoras."""
+Pueden ser "humanos" o pueden ser "magikitos: duende de porcelana viviente, con orejas puntiagudas élficas y piel de porcelana de color melocotón‑beige claro" que visten ropas imperfectas hechas con retazos de tela vieja. Para este tipo de personajes, es muy importante que incluyas esas palabras clave: "duende de porcelana viviente, con orejas puntiagudas élficas y piel de porcelana de color melocotón‑beige claro" sin omitir nada ni simplificar el lenguaje. Extremadamente importante incluirlo todo para este tipo de personaje "duende de porcelana viviente, con orejas puntiagudas élficas y piel de porcelana de color melocotón‑beige claro". Cuando sea un humano, debes dejar claro que es un humano, simple. Los dos tipos de personajes son claramente diferenciables.
+Cualquier otra criatura que no sea un humano o "duende de porcelana viviente, con orejas puntiagudas élficas y piel de porcelana de color melocotón‑beige claro" se diferenciará claramente; pueden ser aves, ranas, insectos... para estos utiliza la descripción que prefieras, siempre presentando criaturas mágicas agradables, amables y acogedoras."""
 )
 
 

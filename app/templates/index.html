@@ -3,9 +3,19 @@
 <head>
     <meta charset="UTF-8" />
     <title>Storytelling Dashboard</title>
-    <link rel="icon" type="image/png" href="{{ url_for('static', filename='assets/img/favicon.png') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='assets/css/styles.css') }}">
-    <script src="{{ url_for('static', filename='assets/js/general.js') }}" defer></script>
+
+    <!-- Favicon -->
+    <link
+            rel="icon"
+            type="image/png"
+            href="{{ url_for('static', filename='assets/img/favicon.png') }}"
+    >
+
+    <!-- Main stylesheet -->
+    <link
+            rel="stylesheet"
+            href="{{ url_for('static', filename='assets/css/styles.css') }}"
+    >
 </head>
 <body>
 <header>
@@ -13,112 +23,152 @@
 </header>
 
 <main id="main-content">
-    <!-- Step 0: Settings form -->
-    <form id="settings-form" class="settings-form">
-        <div class="form-row">
-            <label for="words-per-scene">Words per scene:</label>
-            <input
-                    type="number"
-                    id="words-per-scene"
-                    value="{{ default_words_per_scene }}"
-                    class="small-input"
+    <!-- Combined settings + audio selection container -->
+    <div class="settings-container" id="initial-ui-container">
+        <form id="settings-form" class="settings-form">
+            <h2>Video & Prompt Settings</h2>
+
+            <div class="form-section">
+                <div class="form-group">
+                    <label for="words-per-scene">Words per scene:</label>
+                    <input
+                            type="number"
+                            id="words-per-scene"
+                            value="{{ default_words_per_scene }}"
+                            class="small-input"
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="text-model">Text model:</label>
+                    <input
+                            type="text"
+                            id="text-model"
+                            value="{{ default_text_model }}"
+                            class="medium-input"
+                    >
+                </div>
+            </div>
+
+            <!-- Separate size selectors: AI image size & final video size -->
+            <div class="form-section">
+                <div class="form-group">
+                    <label for="ai-size-select">AI Image Size:</label>
+                    <select id="ai-size-select">
+                        <!-- For now, just populate the default as a single option -->
+                        <option value="{{ default_images_ai_requested_size }}" selected>
+                            {{ default_images_ai_requested_size }}
+                        </option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="video-size">Final Video Size:</label>
+                    <select id="video-size">
+                        <!-- Default 1920x1080, no need for more options -->
+                        <option value="{{ default_video_size }}" selected>
+                            {{ default_video_size }}
+                        </option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <div class="form-group">
+                    <label for="fade-in">Start Fade In (seconds):</label>
+                    <input
+                            type="number"
+                            id="fade-in"
+                            value="{{ default_fade_in }}"
+                            class="small-input"
+                            min="0"
+                            step="0.1"
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="fade-out">End Fade Out (seconds):</label>
+                    <input
+                            type="number"
+                            id="fade-out"
+                            value="{{ default_fade_out }}"
+                            class="small-input"
+                            min="0"
+                            step="0.1"
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="crossfade-dur">Transitions Crossfade (seconds):</label>
+                    <input
+                            type="number"
+                            id="crossfade-dur"
+                            value="{{ default_crossfade_dur }}"
+                            class="small-input"
+                            min="0"
+                            step="0.1"
+                    >
+                </div>
+            </div>
+
+            <div class="form-section">
+                <div class="form-group full-width">
+                    <label for="image-prompt-style">Image Prompt Style</label>
+                    <p class="help-text">
+                        General look & style of your images.
+                    </p>
+                    <textarea
+                            id="image-prompt-style"
+                            class="full-width-textarea"
+                    >{{ default_image_prompt_style }}</textarea>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <div class="form-group full-width">
+                    <label for="characters-prompt-style">Characters Prompt Style</label>
+                    <p class="help-text">
+                        Visual details for characters in the story.
+                    </p>
+                    <textarea
+                            id="characters-prompt-style"
+                            class="full-width-textarea"
+                    >{{ default_characters_prompt_style }}</textarea>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <div class="form-group full-width">
+                    <label for="image-preprocessing-prompt">Image prompt preprocessing instructions</label>
+                    <p class="help-text">
+                        Base for each image prompt. You can reference placeholders like [image_style], [character_types], [story_items_style], [story], [current_sequence].
+                    </p>
+                    <textarea
+                            id="image-preprocessing-prompt"
+                            class="full-width-textarea"
+                    >{{ default_image_preprocessing_prompt }}</textarea>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <div class="form-group full-width">
+                    <label for="audio-file-input">Select audio file:</label>
+                    <input
+                            type="file"
+                            id="audio-file-input"
+                            accept="audio/*"
+                    />
+                </div>
+            </div>
+
+            <button
+                    id="upload-btn"
+                    type="button"
+                    style="margin-top: 10px;"
             >
-        </div>
-
-        <div class="form-row">
-            <label for="text-model">Text model:</label>
-            <input
-                    type="text"
-                    id="text-model"
-                    value="{{ default_text_model }}"
-                    class="medium-input"
-            >
-        </div>
-
-        <div class="form-row">
-            <label for="size-select">Size:</label>
-            <select id="size-select">
-                <option
-                        value="1024x1024"
-                        {% if default_video_size == "1024x1024" %}selected{% endif %}
-                >1024x1024</option>
-                <option
-                        value="1792x1024"
-                        {% if default_video_size == "1792x1024" %}selected{% endif %}
-                >1792x1024</option>
-                <option
-                        value="1024x1792"
-                        {% if default_video_size == "1024x1792" %}selected{% endif %}
-                >1024x1792</option>
-            </select>
-        </div>
-
-        <div class="form-row">
-            <label for="fade-in">Start Fade In (seconds):</label>
-            <input
-                    type="number"
-                    id="fade-in"
-                    value="{{ default_fade_in }}"
-                    class="small-input"
-                    min="0"
-                    step="0.1"
-            >
-        </div>
-
-        <div class="form-row">
-            <label for="fade-out">End Fade Out (seconds):</label>
-            <input
-                    type="number"
-                    id="fade-out"
-                    value="{{ default_fade_out }}"
-                    class="small-input"
-                    min="0"
-                    step="0.1"
-            >
-        </div>
-
-        <div class="form-row">
-            <label for="crossfade-dur">Transitions Crossfade (seconds):</label>
-            <input
-                    type="number"
-                    id="crossfade-dur"
-                    value="{{ default_crossfade_dur }}"
-                    class="small-input"
-                    min="0"
-                    step="0.1"
-            >
-        </div>
-
-        <div class="form-row">
-            <label for="image-prompt-style">Image Prompt Style</label>
-            <p>Describe how you want your images to look like.</p>
-            <textarea id="image-prompt-style" rows="4" class="full-width-textarea">{{ default_image_prompt_style }}</textarea>
-        </div>
-
-        <div class="form-row">
-            <label for="characters-prompt-style">Characters Prompt Style</label>
-            <p>Describe the character types that appear in your story and what they should look like.</p>
-            <textarea id="characters-prompt-style" rows="4" class="full-width-textarea">{{ default_characters_prompt_style }}</textarea>
-        </div>
-
-        <div class="form-row">
-            <label for="image-preprocessing-prompt">Image prompt preprocessing instructions</label>
-            <p>Each sequence will be preloaded with a prompt to generate the image. You can of course edit it, but it's a hard work to explain each prompt, so you need a solid starting base. That's what the image prompt preprocessing feature does. You can reference the following items here:</p>
-            <ul>
-                <li><strong>[image_style]</strong>: This contains your details for how the images should look like in general.</li>
-                <li><strong>[character_types]</strong>: This contains the information for how you want to define your characters styles in general.</li>
-                <li><strong>[story_items_style]</strong>: This contains an auto-generated list of items and their style, which will be generated by the OpenAI API, based on your current story.</li>
-                <li><strong>[story]</strong>: This will contain the full story in text version, for context.</li>
-                <li><strong>[current_sequence]</strong>: This will contain the narrated text that appears in the current scene, and is useful so the prompt processor knows what to focus on most.</li>
-            </ul>
-            <textarea id="image-preprocessing-prompt" rows="6" class="full-width-textarea">{{ default_image_preprocessing_prompt }}</textarea>
-        </div>
-    </form>
-
-    <!-- Step 1: Audio upload -->
-    <div id="upload-section" class="upload-section">
-        <input type="file" id="audio-file-input" accept="audio/*" />
-        <button id="upload-btn" type="button">Use this audio</button>
+                Use this audio
+            </button>
+        </form>
     </div>
 
     <!-- Step 1.5: Show "Uploading audio..." with a Cancel button while the request is in flight -->
@@ -129,22 +179,38 @@
         <button id="upload-cancel-btn" class="red-button">Cancel</button>
     </div>
 
-    <!-- Step 2: After audio is fully uploaded & transcribed, show embedded audio + summary -->
+    <!-- Step 2: After audio is uploaded & transcribed -->
     <div id="audio-processing-section" style="display:none;">
         <audio controls id="uploaded-audio" class="uploaded-audio"></audio>
         <div id="whisper-loading" class="loading-feedback" style="display:none;">
             Converting audio to text...
         </div>
         <p id="story-description" class="story-description" style="display:none;"></p>
-        <p id="story-ingredients" class="story-ingredients" style="display:none; white-space:pre-wrap;"></p>
+
+        <!-- Editable story ingredients + button to generate image prompts -->
+        <div id="story-ingredients-container" style="display:none;">
+            <label>Story Ingredients:</label>
+            <textarea
+                    id="story-ingredients-textarea"
+                    class="full-width-textarea"
+                    style="min-height:150px;"
+            ></textarea>
+            <button
+                    id="generate-prompts-btn"
+                    type="button"
+                    style="margin-top:10px;"
+            >
+                Generate Image Prompts
+            </button>
+        </div>
     </div>
 
-    <!-- Step 3.5: chunk processing status -->
+    <!-- We reintroduce the chunk-processing-status div so it's not null -->
     <div id="chunk-processing-status" class="loading-feedback" style="display:none;">
         Processing chunks...
     </div>
 
-    <!-- Scenes container -->
+    <!-- Scenes container (cards for each chunk) -->
     <div id="scenes-container"></div>
 
     <!-- Generate video button & indefinite loading -->
@@ -155,14 +221,36 @@
         </div>
     </div>
 
-    <!-- Final video embed, center it, show the path -->
-    <div id="final-video-section" style="display:none;">
+    <!-- Final video embed -->
+    <div id="final-video-section" style="display:none; text-align:center;">
         <video controls id="final-video">
             <source id="final-video-source" src="" type="video/mp4">
         </video>
         <div id="final-video-path"></div>
     </div>
-
 </main>
+
+<!-- Simple local image crop overlay -->
+<div class="simple-crop-overlay" id="local-image-crop-modal" style="display: none;">
+    <div class="simple-crop-content">
+        <h3>Crop your image</h3>
+        <div class="crop-container">
+            <img id="local-image-preview" alt="preview" />
+            <div id="crop-rect"></div>
+        </div>
+        <div class="btn-row">
+            <button id="crop-cancel" class="red-button">Cancel</button>
+            <button id="crop-confirm">Confirm Crop</button>
+        </div>
+    </div>
+</div>
+
+<!-- Load JS in separate files to keep concerns clear -->
+<script src="{{ url_for('static', filename='assets/js/general.js') }}"></script>
+<script src="{{ url_for('static', filename='assets/js/audio-upload.js') }}"></script>
+<script src="{{ url_for('static', filename='assets/js/prompt-creation.js') }}"></script>
+<script src="{{ url_for('static', filename='assets/js/image-handling.js') }}"></script>
+<script src="{{ url_for('static', filename='assets/js/video-creation.js') }}"></script>
+
 </body>
 </html>

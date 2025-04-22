@@ -1,483 +1,278 @@
+// general.js
+
+// Expose all global variables on window, ensuring they exist before other scripts run
+window.initialUIContainer = null;
+window.audioFileInput = null;
+window.uploadBtn = null;
+window.uploadingSection = null;
+window.uploadCancelBtn = null;
+window.uploadingFeedback = null;
+window.audioProcessingSection = null;
+window.whisperLoading = null;
+window.uploadedAudio = null;
+window.storyDescription = null;
+window.storyIngredientsContainer = null;
+window.storyIngredientsTextarea = null;
+window.generatePromptsBtn = null;
+window.chunkProcessingStatus = null;
+window.scenesContainer = null;
+window.videoGenerationSection = null;
+window.generateVideoBtn = null;
+window.videoProgress = null;
+window.finalVideoSection = null;
+window.finalVideoSource = null;
+window.finalVideo = null;
+window.finalVideoPathEl = null;
+window.mainHeader = null;
+window.wordsPerSceneInput = null;
+window.textModelInput = null;
+window.aiSizeSelect = null;
+window.videoSizeSelect = null;
+window.imagePromptStyleTextarea = null;
+window.charactersPromptStyleTextarea = null;
+window.imagePreprocessingPromptTextarea = null;
+window.fadeInInput = null;
+window.fadeOutInput = null;
+window.crossfadeInput = null;
+window.localImageCropModal = null;
+window.localImagePreview = null;
+window.cropRect = null;
+window.cropCancelBtn = null;
+window.cropConfirmBtn = null;
+
+// Global states
+window.originalFile = null;
+window.localImageSceneIndex = null;
+window.displayedImgWidth = 0;
+window.displayedImgHeight = 0;
+window.rectX = 0;
+window.rectY = 0;
+window.rectW = 100;
+window.rectH = 100;
+window.dragging = false;
+window.dragOffsetX = 0;
+window.dragOffsetY = 0;
+
+window.currentJobId = null;
+window.totalScenes = 0;
+window.imagesGenerated = 0;
+window.userCanceledMidUpload = false;
+window.sceneGenerated = [];
+window.uploadAbortController = null;
+window.chunksData = [];
+// The crucial fix: define isGeneratingImage on window to avoid "before initialization"
+window.isGeneratingImage = false;
+window.aspectRatio = 1.0;
+
+// Utility: fadeOut
+window.fadeOut = function(element, duration = 500) {
+    let start = null;
+    function animate(timestamp) {
+        if (!start) start = timestamp;
+        const progress = timestamp - start;
+        let opacity = 1 - Math.min(progress / duration, 1);
+        element.style.opacity = opacity;
+        if (progress >= duration) {
+            element.style.display = 'none';
+        } else {
+            requestAnimationFrame(animate);
+        }
+    }
+    requestAnimationFrame(animate);
+};
+
+// Utility: fadeIn
+window.fadeIn = function(element, duration = 500) {
+    element.style.opacity = 0;
+    element.style.display = 'block';
+    let start = null;
+    function animate(timestamp) {
+        if (!start) start = timestamp;
+        const progress = timestamp - start;
+        let opacity = Math.min(progress / duration, 1);
+        element.style.opacity = opacity;
+        if (progress < duration) {
+            requestAnimationFrame(animate);
+        }
+    }
+    requestAnimationFrame(animate);
+};
+
+// Utility: parseTime
+window.parseTime = function(sec) {
+    sec = Math.floor(sec);
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = sec % 60;
+    let parts = [];
+    if (h > 0) parts.push(`${h}h`);
+    if (m > 0) parts.push(`${m}m`);
+    if (s > 0) parts.push(`${s}s`);
+    if (!parts.length) parts.push("0s");
+    return parts.join(" ");
+};
+
+// Utility: formatDuration
+window.formatDuration = function(startSec, endSec) {
+    const s = parseTime(startSec);
+    const e = parseTime(endSec);
+    return `from ${s} to ${e}`;
+};
+
+// Utility: reset UI
+window.resetUI = function() {
+    window.currentJobId = null;
+    window.totalScenes = 0;
+    window.imagesGenerated = 0;
+    window.isGeneratingImage = false;
+    window.userCanceledMidUpload = false;
+    window.sceneGenerated = [];
+    window.chunksData = [];
+
+    // Show initial UI again
+    initialUIContainer.style.display = 'block';
+
+    // Reset form to defaults or blank
+    wordsPerSceneInput.value = '{{ default_words_per_scene }}';
+    textModelInput.value = '{{ default_text_model }}';
+    aiSizeSelect.value = '{{ default_images_ai_requested_size }}';
+    videoSizeSelect.value = '{{ default_video_size }}';
+    imagePromptStyleTextarea.value = `{{ default_image_prompt_style|replace("\n", "\\n") }}`;
+    charactersPromptStyleTextarea.value = `{{ default_characters_prompt_style|replace("\n", "\\n") }}`;
+    imagePreprocessingPromptTextarea.value = `{{ default_image_preprocessing_prompt|replace("\n", "\\n") }}`;
+    audioFileInput.value = '';
+    fadeInInput.value = '{{ default_fade_in }}';
+    fadeOutInput.value = '{{ default_fade_out }}';
+    crossfadeInput.value = '{{ default_crossfade_dur }}';
+
+    uploadingSection.style.display = 'none';
+    audioProcessingSection.style.display = 'none';
+    storyDescription.style.display = 'none';
+    storyIngredientsContainer.style.display = 'none';
+
+    videoGenerationSection.style.display = 'none';
+    finalVideoSection.style.display = 'none';
+    chunkProcessingStatus.style.display = 'none';
+
+    scenesContainer.innerHTML = '';
+    uploadedAudio.src = '';
+    whisperLoading.style.display = 'none';
+    generateVideoBtn.disabled = true;
+    generateVideoBtn.style.display = 'inline-block';
+    videoProgress.style.display = 'none';
+    videoProgress.textContent = '';
+    finalVideoSource.src = '';
+    finalVideo.load();
+    finalVideoPathEl.textContent = '';
+
+    mainHeader.textContent = "Make your story alive";
+};
+
+// Update crop rect
+window.updateCropRect = function() {
+    window.cropRect.style.left = window.rectX + 'px';
+    window.cropRect.style.top = window.rectY + 'px';
+    window.cropRect.style.width = window.rectW + 'px';
+    window.cropRect.style.height = window.rectH + 'px';
+};
+
+// Enable/disable scene card image buttons
+window.disableAllImageButtons = function() {
+    const allRegen = document.querySelectorAll('.regenerate-btn');
+    const allSelect = document.querySelectorAll('.scene-card figcaption button:nth-of-type(2)');
+    allRegen.forEach(btn => { btn.disabled = true; });
+    allSelect.forEach(btn => { btn.disabled = true; });
+};
+window.enableAllImageButtons = function() {
+    const allRegen = document.querySelectorAll('.regenerate-btn');
+    const allSelect = document.querySelectorAll('.scene-card figcaption button:nth-of-type(2)');
+    allRegen.forEach(btn => { btn.disabled = false; });
+    allSelect.forEach(btn => { btn.disabled = false; });
+};
+
+// Hook DOMContentLoaded to get references
 document.addEventListener('DOMContentLoaded', function() {
+    window.initialUIContainer = document.getElementById('initial-ui-container');
+    window.audioFileInput      = document.getElementById('audio-file-input');
+    window.uploadBtn           = document.getElementById('upload-btn');
+    window.uploadingSection    = document.getElementById('uploading-section');
+    window.uploadCancelBtn     = document.getElementById('upload-cancel-btn');
+    window.uploadingFeedback   = document.getElementById('uploading-feedback');
 
-    const uploadSection = document.getElementById('upload-section');
-    const audioFileInput = document.getElementById('audio-file-input');
-    const uploadBtn = document.getElementById('upload-btn');
+    window.audioProcessingSection  = document.getElementById('audio-processing-section');
+    window.whisperLoading          = document.getElementById('whisper-loading');
+    window.uploadedAudio           = document.getElementById('uploaded-audio');
+    window.storyDescription        = document.getElementById('story-description');
+    window.storyIngredientsContainer = document.getElementById('story-ingredients-container');
+    window.storyIngredientsTextarea  = document.getElementById('story-ingredients-textarea');
+    window.generatePromptsBtn        = document.getElementById('generate-prompts-btn');
 
-    const uploadingSection = document.getElementById('uploading-section');
-    const uploadCancelBtn = document.getElementById('upload-cancel-btn');
-    const uploadingFeedback = document.getElementById('uploading-feedback');
+    window.chunkProcessingStatus  = document.getElementById('chunk-processing-status');
+    window.scenesContainer        = document.getElementById('scenes-container');
 
-    const audioProcessingSection = document.getElementById('audio-processing-section');
-    const whisperLoading = document.getElementById('whisper-loading');
-    const uploadedAudio = document.getElementById('uploaded-audio');
-    const storyDescription = document.getElementById('story-description');
-    const storyIngredientsParagraph = document.getElementById('story-ingredients');
+    window.videoGenerationSection = document.getElementById('video-generation-section');
+    window.generateVideoBtn       = document.getElementById('generate-video-btn');
+    window.videoProgress          = document.getElementById('video-progress');
 
-    const chunkProcessingStatus = document.getElementById('chunk-processing-status');
-    const scenesContainer = document.getElementById('scenes-container');
+    window.finalVideoSection      = document.getElementById('final-video-section');
+    window.finalVideoSource       = document.getElementById('final-video-source');
+    window.finalVideo             = document.getElementById('final-video');
+    window.finalVideoPathEl       = document.getElementById('final-video-path');
 
-    const videoGenerationSection = document.getElementById('video-generation-section');
-    const generateVideoBtn = document.getElementById('generate-video-btn');
-    const videoProgress = document.getElementById('video-progress');
+    window.mainHeader             = document.querySelector('header h1');
 
-    const finalVideoSection = document.getElementById('final-video-section');
-    const finalVideoSource = document.getElementById('final-video-source');
-    const finalVideo = document.getElementById('final-video');
-    const finalVideoPathEl = document.getElementById('final-video-path');
+    window.wordsPerSceneInput     = document.getElementById('words-per-scene');
+    window.textModelInput         = document.getElementById('text-model');
+    window.aiSizeSelect           = document.getElementById('ai-size-select');
+    window.videoSizeSelect        = document.getElementById('video-size');
+    window.imagePromptStyleTextarea      = document.getElementById('image-prompt-style');
+    window.charactersPromptStyleTextarea = document.getElementById('characters-prompt-style');
+    window.imagePreprocessingPromptTextarea = document.getElementById('image-preprocessing-prompt');
+    window.fadeInInput            = document.getElementById('fade-in');
+    window.fadeOutInput           = document.getElementById('fade-out');
+    window.crossfadeInput         = document.getElementById('crossfade-dur');
 
-    const mainHeader = document.querySelector('header h1');
+    window.localImageCropModal    = document.getElementById('local-image-crop-modal');
+    window.localImagePreview      = document.getElementById('local-image-preview');
+    window.cropRect               = document.getElementById('crop-rect');
+    window.cropCancelBtn          = document.getElementById('crop-cancel');
+    window.cropConfirmBtn         = document.getElementById('crop-confirm');
 
-    const settingsForm = document.getElementById('settings-form');
-    const wordsPerSceneInput = document.getElementById('words-per-scene');
-    const textModelInput = document.getElementById('text-model');
-    const sizeSelect = document.getElementById('size-select');
-    const imagePromptStyleTextarea = document.getElementById('image-prompt-style');
-    const charactersPromptStyleTextarea = document.getElementById('characters-prompt-style'); // NEW
-    const imagePreprocessingPromptTextarea = document.getElementById('image-preprocessing-prompt');
+    // Basic dragging for the cropRect
+    window.cropRect.addEventListener('mousedown', (e) => {
+        window.dragging = true;
+        window.dragOffsetX = e.offsetX;
+        window.dragOffsetY = e.offsetY;
+    });
+    document.addEventListener('mouseup', () => {
+        window.dragging = false;
+    });
+    document.addEventListener('mousemove', (e) => {
+        if (!window.dragging) return;
+        e.preventDefault();
 
-    let currentJobId = null;
-    let totalScenes = 0;
-    let imagesGenerated = 0;
-    let isGeneratingImage = false;
-    let userCanceledMidUpload = false;
-    let sceneGenerated = [];
-    let uploadAbortController = null;
-    let chunksData = [];
+        const previewRect = window.localImagePreview.getBoundingClientRect();
+        let newLeft = e.clientX - previewRect.left - window.dragOffsetX;
+        let newTop = e.clientY - previewRect.top - window.dragOffsetY;
 
-    /*************** Fade utility ***************/
-    function fadeOut(element, duration = 500) {
-        let start = null;
-        function animate(timestamp) {
-            if (!start) start = timestamp;
-            const progress = timestamp - start;
-            let opacity = 1 - Math.min(progress / duration, 1);
-            element.style.opacity = opacity;
-            if (progress >= duration) {
-                element.style.display = 'none';
-            } else {
-                requestAnimationFrame(animate);
-            }
+        // clamp
+        if (newLeft < 0) newLeft = 0;
+        if (newTop < 0) newTop = 0;
+        if (newLeft + window.rectW > window.displayedImgWidth) {
+            newLeft = window.displayedImgWidth - window.rectW;
         }
-        requestAnimationFrame(animate);
-    }
-
-    function fadeIn(element, duration = 500) {
-        element.style.opacity = 0;
-        element.style.display = 'block';
-        let start = null;
-        function animate(timestamp) {
-            if (!start) start = timestamp;
-            const progress = timestamp - start;
-            let opacity = Math.min(progress / duration, 1);
-            element.style.opacity = opacity;
-            if (progress < duration) {
-                requestAnimationFrame(animate);
-            }
+        if (newTop + window.rectH > window.displayedImgHeight) {
+            newTop = window.displayedImgHeight - window.rectH;
         }
-        requestAnimationFrame(animate);
-    }
-    /********************************************/
 
-    // -------------- EVENT: "Use this audio" --------------
-    uploadBtn.addEventListener('click', async () => {
-        if (!audioFileInput.files.length) {
-            alert("Please select an audio file first.");
-            return;
-        }
-        const formData = new FormData();
-        formData.append('audio', audioFileInput.files[0]);
-        formData.append('words_per_scene', wordsPerSceneInput.value.trim());
-        formData.append('text_model', textModelInput.value.trim());
-        formData.append('size', sizeSelect.value);
-        formData.append('image_prompt_style', imagePromptStyleTextarea.value);
-        formData.append('characters_prompt_style', charactersPromptStyleTextarea.value); // NEW
-        formData.append('image_preprocessing_prompt', imagePreprocessingPromptTextarea.value);
-
-        settingsForm.style.display = 'none';
-        uploadSection.style.display = 'none';
-        uploadingSection.style.display = 'block';
-        uploadingFeedback.textContent = "Uploading audio...";
-        userCanceledMidUpload = false;
-        uploadAbortController = new AbortController();
-        let signal = uploadAbortController.signal;
-
-        try {
-            const resp = await fetch('/upload-audio', {
-                method: 'POST',
-                body: formData,
-                signal: signal
-            });
-            if (userCanceledMidUpload) return;
-            const data = await resp.json();
-            if (data.error) {
-                alert(data.error);
-                resetUI();
-                return;
-            }
-            // After successful upload
-            uploadingSection.style.display = 'none';
-            mainHeader.textContent = data.title;
-            audioProcessingSection.style.display = 'block';
-            uploadedAudio.src = URL.createObjectURL(audioFileInput.files[0]);
-            storyDescription.textContent = data.description;
-            storyDescription.style.display = 'block';
-            storyIngredientsParagraph.textContent = data.story_ingredients;
-            storyIngredientsParagraph.style.display = 'block';
-
-            chunksData = data.chunks;
-            totalScenes = data.chunks.length;
-            imagesGenerated = 0;
-            scenesContainer.innerHTML = '';
-            sceneGenerated = new Array(totalScenes).fill(false);
-
-            chunkProcessingStatus.style.display = 'block';
-            chunkProcessingStatus.textContent = 'Processing chunks...';
-
-            for (let i = 0; i < totalScenes; i++) {
-                const { index, raw_text } = data.chunks[i];
-                const sceneCard = createSceneCard(index);
-                scenesContainer.appendChild(sceneCard);
-                chunkProcessingStatus.textContent = `Processing chunk ${i + 1} of ${totalScenes}...`;
-                const finalPrompt = await preprocessChunk(data.job_id, index);
-                if (!finalPrompt) {
-                    resetUI();
-                    return;
-                }
-                fillPromptTab(sceneCard, finalPrompt); // fill text area with prompt
-            }
-            chunkProcessingStatus.style.display = 'none';
-            videoGenerationSection.style.display = 'block';
-            currentJobId = data.job_id;
-            enableGenerateButtons();
-        } catch (err) {
-            if (err.name === 'AbortError') {
-                console.log("Fetch aborted by user.");
-            } else {
-                alert("Error uploading audio");
-            }
-            resetUI();
-        }
+        window.rectX = newLeft;
+        window.rectY = newTop;
+        updateCropRect();
     });
 
-    // -------------- CANCEL mid-upload --------------
-    uploadCancelBtn.addEventListener('click', () => {
-        userCanceledMidUpload = true;
-        if (uploadAbortController) {
-            uploadAbortController.abort();
-        }
-        resetUI();
+    window.cropCancelBtn.addEventListener('click', () => {
+        window.localImageCropModal.style.display = 'none';
+        window.isGeneratingImage = false;
+        enableAllImageButtons();
     });
-
-    // -------------- CREATE SCENE CARD --------------
-    function createSceneCard(sceneIndex) {
-        const sceneCard = document.createElement('div');
-        sceneCard.className = 'scene-card';
-        sceneCard.id = `scene-card-${sceneIndex}`;
-
-        // TABS
-        const tabsContainer = document.createElement('div');
-        tabsContainer.className = 'tabs-container';
-
-        const tabBtnPrompt = document.createElement('div');
-        tabBtnPrompt.className = 'tab-button active';
-        tabBtnPrompt.textContent = 'Image Prompt';
-
-        const tabBtnText = document.createElement('div');
-        tabBtnText.className = 'tab-button';
-        tabBtnText.textContent = 'Scene Text';
-
-        tabsContainer.appendChild(tabBtnPrompt);
-        tabsContainer.appendChild(tabBtnText);
-
-        // TAB CONTENTS
-        const tabPromptContent = document.createElement('div');
-        tabPromptContent.className = 'tab-content tab-content-prompt active';
-        const textArea = document.createElement('textarea');
-        textArea.value = "Generating sequence prompt...";
-        textArea.disabled = true;
-
-        // Animate textarea height on focus/blur
-        textArea.addEventListener('focus', adjustTextareaHeight);
-        textArea.addEventListener('input', adjustTextareaHeight);
-        textArea.addEventListener('blur', resetTextareaHeight);
-
-        tabPromptContent.appendChild(textArea);
-
-        const tabSceneTextContent = document.createElement('div');
-        tabSceneTextContent.className = 'tab-content tab-content-text';
-        const sceneTextBlock = document.createElement('div');
-        sceneTextBlock.className = 'scene-text-block';
-        tabSceneTextContent.appendChild(sceneTextBlock);
-
-        // FIGURE (IMAGE + CAPTION)
-        const figureEl = document.createElement('figure');
-        const imgEl = document.createElement('img');
-        imgEl.src = '/static/assets/img/placeholder.png';
-        const figCaption = document.createElement('figcaption');
-        const regenBtn = document.createElement('button');
-        regenBtn.textContent = 'Generate';
-        regenBtn.classList.add('regenerate-btn');
-        regenBtn.disabled = true;
-        regenBtn.addEventListener('click', () => handleGenerateImage(sceneIndex, textArea, imgEl, regenBtn));
-        figCaption.appendChild(regenBtn);
-        figureEl.appendChild(imgEl);
-        figureEl.appendChild(figCaption);
-
-        // CARD CONTENT WRAPPER
-        const cardContent = document.createElement('div');
-        cardContent.className = 'scene-card-content';
-        const tabContentsContainer = document.createElement('div');
-        tabContentsContainer.className = 'tab-contents-wrapper';
-
-        tabContentsContainer.appendChild(tabsContainer);
-        tabContentsContainer.appendChild(tabPromptContent);
-        tabContentsContainer.appendChild(tabSceneTextContent);
-
-        cardContent.appendChild(tabContentsContainer);
-        cardContent.appendChild(figureEl);
-        sceneCard.appendChild(cardContent);
-
-        // Switch tabs on click
-        tabBtnPrompt.addEventListener('click', () => {
-            tabBtnPrompt.classList.add('active');
-            tabBtnText.classList.remove('active');
-            tabPromptContent.classList.add('active');
-            tabSceneTextContent.classList.remove('active');
-        });
-        tabBtnText.addEventListener('click', () => {
-            tabBtnPrompt.classList.remove('active');
-            tabBtnText.classList.add('active');
-            tabPromptContent.classList.remove('active');
-            tabSceneTextContent.classList.add('active');
-        });
-
-        // Fill scene text
-        fillSceneText(sceneIndex, sceneTextBlock);
-        return sceneCard;
-    }
-
-    // -------------- ADJUST TEXTAREA ON FOCUS/INPUT --------------
-    function adjustTextareaHeight(e) {
-        const area = e.target;
-        area.style.height = 'auto'; // reset first
-        area.style.height = area.scrollHeight + 'px';
-    }
-    // -------------- RESET TEXTAREA ON BLUR --------------
-    function resetTextareaHeight(e) {
-        // revert to original 200px
-        e.target.style.height = '200px';
-    }
-
-    // -------------- FILL SCENE TEXT --------------
-    function fillSceneText(sceneIndex, sceneTextBlock) {
-        const chunk = chunksData.find(c => c.index === sceneIndex);
-        if (!chunk) return;
-        const displayText = chunk.raw_text;
-        const startSeconds = chunk.start;
-        const endSeconds = chunk.end;
-        const rangeStr = formatDuration(startSeconds, endSeconds);
-        sceneTextBlock.textContent = `"${displayText}"\nDuration: ${rangeStr}`;
-    }
-
-    function formatDuration(startSec, endSec) {
-        const s = parseTime(startSec);
-        const e = parseTime(endSec);
-        return `from ${s} to ${e}`;
-    }
-    function parseTime(sec) {
-        sec = Math.floor(sec);
-        const h = Math.floor(sec / 3600);
-        const m = Math.floor((sec % 3600) / 60);
-        const s = sec % 60;
-        let parts = [];
-        if (h > 0) parts.push(`${h}h`);
-        if (m > 0) parts.push(`${m}m`);
-        if (s > 0) parts.push(`${s}s`);
-        if (!parts.length) parts.push("0s");
-        return parts.join(" ");
-    }
-
-    // -------------- PREPROCESS CHUNK --------------
-    async function preprocessChunk(jobId, chunkIndex) {
-        const resp = await fetch('/preprocess-chunk', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ job_id: jobId, chunk_index: chunkIndex })
-        });
-        const data = await resp.json();
-        if (data.error) throw data.error;
-        return data.preprocessed_prompt;
-    }
-
-    // -------------- FILL PROMPT TAB ALWAYS --------------
-    function fillPromptTab(sceneCard, finalPrompt) {
-        const promptTab = sceneCard.querySelector('.tab-content-prompt textarea');
-        if (promptTab) {
-            promptTab.value = finalPrompt;
-            promptTab.disabled = false;
-        }
-    }
-
-    // -------------- ENABLE GENERATE BUTTONS --------------
-    function enableGenerateButtons() {
-        const allBtns = document.querySelectorAll('.regenerate-btn');
-        allBtns.forEach(b => {
-            b.disabled = false;
-            b.textContent = 'Generate';
-        });
-    }
-
-    // -------------- GENERATE IMAGE --------------
-    async function handleGenerateImage(sceneIndex, textArea, img, regenBtn, attempt = 1) {
-        if (isGeneratingImage && attempt === 1) return;
-        isGeneratingImage = true;
-        const allBtns = document.querySelectorAll('.regenerate-btn');
-        allBtns.forEach(b => { b.disabled = true; });
-        regenBtn.textContent = `Generating... (attempt ${attempt})`;
-
-        try {
-            const resp = await fetch('/generate-image', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    job_id: currentJobId,
-                    scene_index: sceneIndex,
-                    new_prompt: textArea.value
-                })
-            });
-            const dataImg = await resp.json();
-            if (dataImg.error) {
-                console.error("Image generation error:", dataImg.error);
-                if (attempt < 5) {
-                    await handleGenerateImage(sceneIndex, textArea, img, regenBtn, attempt + 1);
-                    return;
-                } else {
-                    regenBtn.disabled = false;
-                    regenBtn.textContent = 'Generate';
-                    isGeneratingImage = false;
-                    return;
-                }
-            } else {
-                // success
-                img.src = dataImg.image_url + "?t=" + Date.now();
-                if (!sceneGenerated[sceneIndex]) {
-                    sceneGenerated[sceneIndex] = true;
-                    imagesGenerated++;
-                }
-                // re-enable
-                allBtns.forEach(btn => {
-                    btn.disabled = false;
-                    if (btn === regenBtn) {
-                        btn.textContent = 'Regenerate';
-                    } else {
-                        if (!btn.textContent.includes('Regenerate')) {
-                            btn.textContent = 'Generate';
-                        }
-                    }
-                });
-                isGeneratingImage = false;
-                const nextIndex = sceneIndex + 1;
-                if (nextIndex < totalScenes && !sceneGenerated[nextIndex]) {
-                    const nextCard = document.getElementById(`scene-card-${nextIndex}`);
-                    if (nextCard) {
-                        const nextTextArea = nextCard.querySelector('.tab-content-prompt textarea');
-                        const nextImg = nextCard.querySelector('img');
-                        const nextBtn = nextCard.querySelector('.regenerate-btn');
-                        await handleGenerateImage(nextIndex, nextTextArea, nextImg, nextBtn);
-                    }
-                }
-                if (imagesGenerated >= totalScenes) {
-                    generateVideoBtn.disabled = false;
-                }
-            }
-        } catch (err) {
-            console.error("Image generation fetch error:", err);
-            if (attempt < 5) {
-                await handleGenerateImage(sceneIndex, textArea, img, regenBtn, attempt + 1);
-                return;
-            } else {
-                regenBtn.disabled = false;
-                regenBtn.textContent = 'Generate';
-                isGeneratingImage = false;
-                return;
-            }
-        }
-    }
-
-    // -------------- GENERATE VIDEO --------------
-    generateVideoBtn.addEventListener('click', async () => {
-        generateVideoBtn.style.display = 'none';
-        const sceneCards = Array.from(document.querySelectorAll('.scene-card'));
-        let delay = 0;
-        sceneCards.reverse().forEach(card => {
-            setTimeout(() => fadeOut(card, 300), delay);
-            delay += 300;
-        });
-        setTimeout(async () => {
-            scenesContainer.innerHTML = '';
-            videoProgress.style.display = 'inline-block';
-            videoProgress.textContent = 'Generating video...';
-            try {
-                const resp = await fetch('/create-video', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ job_id: currentJobId })
-                });
-                const data = await resp.json();
-                if (data.error) {
-                    console.error("Error creating video:", data.error);
-                    videoProgress.style.display = 'none';
-                    generateVideoBtn.style.display = 'inline-block';
-                    return;
-                }
-                finalVideoSource.src = data.video_url;
-                finalVideo.load();
-                finalVideoSection.style.display = 'block';
-                videoProgress.style.display = 'none';
-                finalVideoPathEl.textContent = "Saved at: " + data.video_url;
-            } catch (err) {
-                console.error("Error creating video:", err);
-                videoProgress.style.display = 'none';
-                generateVideoBtn.style.display = 'inline-block';
-            }
-        }, delay + 300);
-    });
-
-    // -------------- RESET UI --------------
-    function resetUI() {
-        currentJobId = null;
-        totalScenes = 0;
-        imagesGenerated = 0;
-        isGeneratingImage = false;
-        userCanceledMidUpload = false;
-        sceneGenerated = [];
-        chunksData = [];
-
-        mainHeader.textContent = "Make your story alive";
-        settingsForm.style.display = 'block';
-        wordsPerSceneInput.value = '40';
-        textModelInput.value = 'o4-mini';
-        sizeSelect.value = '1792x1024';
-        uploadSection.style.display = 'block';
-        uploadingSection.style.display = 'none';
-        audioProcessingSection.style.display = 'none';
-        storyDescription.style.display = 'none';
-        storyIngredientsParagraph.style.display = 'none';
-        videoGenerationSection.style.display = 'none';
-        finalVideoSection.style.display = 'none';
-        chunkProcessingStatus.style.display = 'none';
-
-        scenesContainer.innerHTML = '';
-        audioFileInput.value = '';
-        uploadedAudio.src = '';
-        whisperLoading.style.display = 'none';
-        generateVideoBtn.disabled = true;
-        generateVideoBtn.style.display = 'inline-block';
-        videoProgress.style.display = 'none';
-        videoProgress.textContent = '';
-        finalVideoSource.src = '';
-        finalVideo.load();
-        finalVideoPathEl.textContent = '';
-    }
 });
