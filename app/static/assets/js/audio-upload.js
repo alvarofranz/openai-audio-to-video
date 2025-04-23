@@ -1,8 +1,8 @@
-// Focuses purely on uploading audio and setting up the initial job data
+// audio-upload.js
+// No longer re-transcribes at all. We only upload once, then call /extract-details for chunking, etc.
+
 document.addEventListener('DOMContentLoaded', function() {
-    // Upload button
     uploadBtn.addEventListener('click', handleAudioUpload);
-    // Cancel button
     uploadCancelBtn.addEventListener('click', () => {
         userCanceledMidUpload = true;
         if (uploadAbortController) {
@@ -12,11 +12,13 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
+// Step 1: /upload-audio => immediate transcription
 async function handleAudioUpload() {
     if (!audioFileInput.files.length) {
         alert("Please select an audio file first.");
         return;
     }
+
     const formData = new FormData();
     formData.append('audio', audioFileInput.files[0]);
     formData.append('words_per_scene', wordsPerSceneInput.value.trim());
@@ -34,71 +36,111 @@ async function handleAudioUpload() {
     formData.append('fade_out', fadeOutInput.value);
     formData.append('crossfade_dur', crossfadeInput.value);
 
-    // Hide initial UI, show uploading
+    // Show "Uploading..." UI
     initialUIContainer.style.display = 'none';
     uploadingSection.style.display = 'block';
     uploadingFeedback.textContent = "Uploading audio...";
     userCanceledMidUpload = false;
     uploadAbortController = new AbortController();
-    let signal = uploadAbortController.signal;
+    const signal = uploadAbortController.signal;
 
     try {
+        // POST /upload-audio
         const resp = await fetch('/upload-audio', {
             method: 'POST',
             body: formData,
-            signal: signal
+            signal
         });
         if (userCanceledMidUpload) return;
+
         const data = await resp.json();
         if (data.error) {
             alert(data.error);
             resetUI();
             return;
         }
+
+        // We have job_id + the raw transcript
         uploadingSection.style.display = 'none';
 
-        // Update header
-        mainHeader.textContent = data.title;
-
-        // Show the audio info
+        // Show the "audio-processing" section
         audioProcessingSection.style.display = 'block';
+
+        // 1) Show the audio
         uploadedAudio.src = URL.createObjectURL(audioFileInput.files[0]);
-        storyDescription.textContent = data.description;
-        storyDescription.style.display = 'block';
 
-        // Put story ingredients into a textarea (editable)
-        storyIngredientsTextarea.value = data.story_ingredients;
-        storyIngredientsContainer.style.display = 'block';
+        // 2) Show the transcript just below the audio
+        storyTranscription.textContent = data.full_text;
+        storyTranscription.style.display = 'block';
 
-        chunksData = data.chunks;
-        totalScenes = data.chunks.length;
-        imagesGenerated = 0;
-        sceneGenerated = new Array(totalScenes).fill(false);
-        scenesContainer.innerHTML = '';
-
-        // Create scene cards, but do NOT preprocess yet
-        for (let i = 0; i < totalScenes; i++) {
-            const { index } = data.chunks[i];
-            const sceneCard = createSceneCard(index);
-            scenesContainer.appendChild(sceneCard);
-        }
-
-        // Hide the "Generate Video" section until prompts are generated
-        videoGenerationSection.style.display = 'none';
-
-        currentJobId = data.job_id;
+        // 3) Then call "extract-details" for title/desc/ingredients/chunks
+        whisperLoading.style.display = 'block';
+        await extractDetails(data.job_id);
 
     } catch (err) {
         if (err.name === 'AbortError') {
             console.log("Fetch aborted by user.");
         } else {
+            console.error("Error uploading audio:", err);
             alert("Error uploading audio");
         }
         resetUI();
     }
 }
 
-// Create a scene card for a chunk
+// Step 2: /extract-details => get final data
+async function extractDetails(jobId) {
+    try {
+        const resp = await fetch('/extract-details', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ job_id: jobId })
+        });
+        const data = await resp.json();
+        if (data.error) {
+            alert(data.error);
+            resetUI();
+            return;
+        }
+
+        // Hide the "Extracting details..." message
+        whisperLoading.style.display = 'none';
+
+        // Show the story description below the transcript
+        mainHeader.textContent = data.title;
+        storyDescription.textContent = data.description;
+        storyDescription.style.display = 'block';
+
+        // Then the story ingredients
+        storyIngredientsTextarea.value = data.story_ingredients;
+        storyIngredientsContainer.style.display = 'block';
+
+        // Finally, the scene cards
+        chunksData = data.chunks;
+        totalScenes = data.chunks.length;
+        imagesGenerated = 0;
+        sceneGenerated = new Array(totalScenes).fill(false);
+        scenesContainer.innerHTML = '';
+
+        for (let i = 0; i < totalScenes; i++) {
+            const { index } = data.chunks[i];
+            const sceneCard = createSceneCard(index);
+            scenesContainer.appendChild(sceneCard);
+        }
+
+        // Hide "Generate Video" until after prompts
+        videoGenerationSection.style.display = 'none';
+
+        currentJobId = jobId;
+
+    } catch (err) {
+        console.error("Error extracting details:", err);
+        alert("Could not extract details");
+        resetUI();
+    }
+}
+
+// Moved createSceneCard etc. here so we can call it from extractDetails
 function createSceneCard(sceneIndex) {
     const sceneCard = document.createElement('div');
     sceneCard.className = 'scene-card';
@@ -122,10 +164,10 @@ function createSceneCard(sceneIndex) {
     // Tab contents
     const tabPromptContent = document.createElement('div');
     tabPromptContent.className = 'tab-content tab-content-prompt active';
+
     const textArea = document.createElement('textarea');
     textArea.value = "No prompt yet.";
     textArea.disabled = true;
-
     textArea.addEventListener('focus', adjustTextareaHeight);
     textArea.addEventListener('input', adjustTextareaHeight);
     textArea.addEventListener('blur', resetTextareaHeight);
@@ -133,6 +175,7 @@ function createSceneCard(sceneIndex) {
 
     const tabSceneTextContent = document.createElement('div');
     tabSceneTextContent.className = 'tab-content tab-content-text';
+
     const sceneTextBlock = document.createElement('div');
     sceneTextBlock.className = 'scene-text-block';
     tabSceneTextContent.appendChild(sceneTextBlock);
@@ -147,14 +190,14 @@ function createSceneCard(sceneIndex) {
     const regenBtn = document.createElement('button');
     regenBtn.textContent = 'Generate';
     regenBtn.classList.add('regenerate-btn');
-    regenBtn.disabled = true;  // Will enable after prompts are generated
+    regenBtn.disabled = true; // enable after we do "Generate Prompts"
     regenBtn.addEventListener('click', () =>
         handleGenerateImage(sceneIndex, textArea, imgEl, regenBtn)
     );
 
     const selectLocalBtn = document.createElement('button');
     selectLocalBtn.textContent = 'Select Image';
-    selectLocalBtn.disabled = true; // Will enable after prompts are generated
+    selectLocalBtn.disabled = true;
     selectLocalBtn.addEventListener('click', () =>
         handleSelectLocalImage(sceneIndex)
     );
@@ -168,9 +211,9 @@ function createSceneCard(sceneIndex) {
     // Container
     const cardContent = document.createElement('div');
     cardContent.className = 'scene-card-content';
+
     const tabContentsContainer = document.createElement('div');
     tabContentsContainer.className = 'tab-contents-wrapper';
-
     tabContentsContainer.appendChild(tabsContainer);
     tabContentsContainer.appendChild(tabPromptContent);
     tabContentsContainer.appendChild(tabSceneTextContent);
@@ -193,7 +236,6 @@ function createSceneCard(sceneIndex) {
         tabSceneTextContent.classList.add('active');
     });
 
-    // Fill the scene text
     fillSceneText(sceneIndex, sceneTextBlock);
     return sceneCard;
 }

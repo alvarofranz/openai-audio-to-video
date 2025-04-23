@@ -1,18 +1,22 @@
-// Manages the final video assembly.
+// Manages final video assembly
 
 document.addEventListener('DOMContentLoaded', function() {
     generateVideoBtn.addEventListener('click', async () => {
         generateVideoBtn.style.display = 'none';
         const sceneCards = Array.from(document.querySelectorAll('.scene-card'));
         let delay = 0;
+
+        // Fade them out
         sceneCards.reverse().forEach(card => {
             setTimeout(() => fadeOut(card, 300), delay);
             delay += 300;
         });
+
         setTimeout(async () => {
             scenesContainer.innerHTML = '';
             videoProgress.style.display = 'inline-block';
             videoProgress.textContent = 'Generating video...';
+
             try {
                 const resp = await fetch('/create-video', {
                     method: 'POST',

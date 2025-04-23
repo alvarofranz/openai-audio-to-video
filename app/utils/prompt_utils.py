@@ -2,10 +2,10 @@ import requests
 from openai import OpenAI
 from moviepy import *
 from .global_utils import log, pretty_print_api_response
+import json
 
 def generate_title_and_description(client: OpenAI, full_text: str, text_model: str) -> dict:
     """
-    Moved from routes.py:
     Generates a short title & description in the same language as the provided story text.
     """
     prompt_text = (
@@ -54,8 +54,7 @@ def preprocess_story_data(
     characters_prompt_style: str
 ) -> str:
     """
-    Incorporates the characters_prompt_style as the 'character base descriptions' to ensure
-    it's merged into the final story ingredients.
+    Extract story ingredients from the text + incorporate characters_prompt_style.
     """
     try:
         completion = client.chat.completions.create(
@@ -73,14 +72,12 @@ def preprocess_story_data(
                         "The expected output should contain the final list of main scenarios, characters and items that are "
                         "most relevant to the story. Do not repeat items, if they appear more than once in the story, sum their information into one single instance. Example output:\n\n"
                         "[Characters]\n"
-                        "-Peter: <all base descriptions provided for this detected character type without omitting anything like human, big heads, fancy clothes> <all story specific additional details that do not contradict any base description like male blue eyes, brown hair, middle age, wears a brown hat>\n"
-                        "-Elvy: <all base descriptions provided for this detected character type without omitting anything like living porcelain elve, pointy ears, peach-beige porcelain skin> <all story specific additional details that do not contradict any base description like green eyes, blonde hair, young, wears a red dress>\n"
+                        "-Peter: <...>\n"
                         "[Scenarios]\n"
-                        "-Forest: dark, dense, full of trees with autumn colors\n"
-                        "-Lake: clear water, big, surrounded by trees\n"
+                        "-Forest: ...\n"
                         "[Items]\n"
-                        "-Sword: sharp, made of steel, engraved with shiny runes\n\n"
-                        "Here is the story that you need to extract information from, in the same language as the provided story. Detect the language and return the response in the same language:\n\n"
+                        "-Sword: ...\n\n"
+                        "Here is the story that you need to extract information from, in the same language as the provided story. Return the response in that same language:\n\n"
                         f"{full_story}\n\n"
                     ),
                 },
@@ -106,7 +103,6 @@ def preprocess_image_prompt(
 ) -> str:
     """
     Incorporates characters_prompt_style as [character_types].
-    Does not alter any existing prompt wording, just adds new context.
     """
     try:
         completion = client.chat.completions.create(
@@ -118,7 +114,7 @@ def preprocess_image_prompt(
                         image_preprocessing_prompt
                         + "\n"
                         f"[image_style] (important details):\n{style_prefix}\n\n"
-                        f"[character_types] (important details, nothing can be omitted or reworded in the prompt under any circumstance for any character):\n{characters_prompt_style}\n\n"
+                        f"[character_types] (important details, must not omit anything about them):\n{characters_prompt_style}\n\n"
                         f"[story] (just for context):\n{full_story}\n\n"
                         f"[story_items_style] (important details context):\n{story_ingredients}\n\n"
                         f"[current_sequence] (main focus for the final image, final prompt should be unique for current scene):\n{scene_text}"
@@ -151,6 +147,9 @@ def generate_image_for_scene(
     height: int,
     characters_prompt_style: str
 ):
+    """
+    Creates a final prompt for the scene, then calls DALL-E.
+    """
     final_prompt = preprocess_image_prompt(
         client=client,
         full_story=story_text,
@@ -179,4 +178,81 @@ def generate_image_for_scene(
         return image_path
     except Exception as e:
         log(f"Error generating image for scene #{index}: {e}", "prompt_utils")
+        return None
+
+def image_prompts_adjustment(
+    client: OpenAI,
+    full_story: str,
+    story_ingredients: str,
+    scene_chunks: list,
+    existing_prompts: list,
+    text_model: str
+):
+    """
+    Unify prompts across scenes to ensure no contradictions, consistent characters, etc.
+    Return JSON with "adjusted_scene_prompts".
+    """
+    from .global_utils import pretty_print_api_response, log
+
+    scene_info = []
+    for i, prompt in enumerate(existing_prompts):
+        chunk_text = scene_chunks[i]["text"]
+        scene_info.append(
+            f"Scene {i}:\n- scene_words: {chunk_text}\n- old_prompt: {prompt}"
+        )
+    combined_scene_info = "\n\n".join(scene_info)
+
+    system_message = (
+        """You are an AI assistant whose only job is to harmonize a list of image-generation prompts so they form a clear, consistent visual story.
+         INPUT
+         [scenes]: an ordered array; each element has:
+         – scene_words: a short text describing to what part in the original full story this current scene belongs to (the matching words in full story that correspond to the current scene)
+         – old_prompt: the existing image prompt to be refined
+         [story_ingredients]: the canonical reference for every character, location, prop, and style rule. Treat every detail in story_ingredients as fixed, untouchable and as must be included in each scene, as each prompt will generate an independent image and needs to contain all the details.
+         TASK
+         For every scene, rewrite old_prompt so it:
+         - Depicts the current scene as vividly and specifically as possible.
+         - Does not include anything in the prompt that may lead to dialogues or text generation, the final prompt must be visual.
+         - Preserves every character, prop, and stylistic detail defined in story_ingredients without change.
+         - Uses the same language the story is written in.
+         - Advances the timeline, so that no two refined prompts may show the exact same instant.
+         Is self-contained (no references to other scenes or to these instructions)."""
+        "JSON OUTPUT\n\n"
+        "{\n"
+        '  "adjusted_scene_prompts": [\n'
+        '    {"scene_index": 0, "prompt": "final refined prompt for this specific scene 0 - between 1800 and 2200 chars"},\n'
+        '    {"scene_index": 1, "prompt": "final refined prompt for this specific scene 1 - between 1800 and 2200 chars"},\n'
+        "    ...\n"
+        "  ]\n"
+        "}\n\n"
+        "No extra text, just that JSON, properly escaping values so they don't break the JSON format."
+    )
+
+    user_message = (
+        f"Full story, just for context, so you can make better decisions on how to refine each scene for the best visual representation, linking each scene to the current time in the story via the scene_words: {full_story}\n\n"
+        f"[story_ingredients], the details provided here, especially for characters, needs to be respected 100%, this has already been processed and it must be respected, no room for creativity here: {story_ingredients}\n\n"
+        "Here are the scenes that need to be visually refined for consistency and great representation for each current scene - [scenes]\n"
+        f"{combined_scene_info}\n\n"
+        "Now please unify them. Return only valid properly escaped JSON."
+    )
+
+    try:
+        response = client.chat.completions.create(
+            model=text_model,
+            messages=[
+                {"role": "system", "content": system_message},
+                {"role": "user", "content": user_message},
+            ],
+        )
+        raw_output = response.choices[0].message.content.strip()
+        pretty_print_api_response(response)
+
+        # Attempt to parse JSON
+        try:
+            return json.loads(raw_output)
+        except json.JSONDecodeError as je:
+            log(f"JSON parse error: {je}", "prompt_utils")
+            return None
+    except Exception as e:
+        log(f"Error in image_prompts_adjustment: {e}", "prompt_utils")
         return None

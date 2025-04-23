@@ -1,4 +1,4 @@
-// Focuses on generating story ingredients and prompts.
+// Manages generating scene prompts & final consistency adjustments
 
 document.addEventListener('DOMContentLoaded', function() {
     generatePromptsBtn.addEventListener('click', async () => {
@@ -16,7 +16,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const updatedIngredients = storyIngredientsTextarea.value || "";
 
-        // For each scene, call /preprocess-chunk
+        // For each scene
         for (let i = 0; i < window.totalScenes; i++) {
             const finalPrompt = await preprocessChunk(window.currentJobId, i, updatedIngredients);
             const sceneCard = document.getElementById(`scene-card-${i}`);
@@ -25,9 +25,14 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             chunkProcessingStatus.textContent = `Generated prompt for scene ${i + 1} of ${window.totalScenes}`;
         }
+
+        // Now do a final "adjust-prompts" pass
+        chunkProcessingStatus.textContent = "Finalizing prompts consistency...";
+        await adjustAllPrompts();
+
         chunkProcessingStatus.style.display = 'none';
 
-        // Now we enable the scene's "Generate" / "Select Image" buttons
+        // Enable "Generate" & "Select" for images
         videoGenerationSection.style.display = 'block';
         enableAllImageButtons();
     });
@@ -53,5 +58,40 @@ function fillPromptTab(sceneCard, finalPrompt) {
     if (promptTab) {
         promptTab.value = finalPrompt;
         promptTab.disabled = false;
+    }
+}
+
+// Once we have all initial prompts, unify them across scenes
+async function adjustAllPrompts() {
+    try {
+        const resp = await fetch('/adjust-prompts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ job_id: window.currentJobId })
+        });
+        const data = await resp.json();
+        if (data.error) {
+            console.warn("Prompt adjustment error:", data.error);
+            return; // fallback: keep old prompts
+        }
+        if (!data.adjusted_prompts) {
+            console.warn("No adjusted_prompts in response");
+            return; // fallback
+        }
+
+        // Replace the textareas
+        data.adjusted_prompts.forEach(item => {
+            const sceneIndex = item.scene_index;
+            const newPrompt = item.prompt;
+            const sceneCard = document.getElementById(`scene-card-${sceneIndex}`);
+            if (sceneCard) {
+                const promptTab = sceneCard.querySelector('.tab-content-prompt textarea');
+                if (promptTab) {
+                    promptTab.value = newPrompt;
+                }
+            }
+        });
+    } catch (err) {
+        console.error("Error adjusting all prompts:", err);
     }
 }

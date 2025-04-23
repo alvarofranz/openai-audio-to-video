@@ -129,6 +129,10 @@ button:disabled {
     border-radius: 6px;
 }
 
+audio {
+    width: 100%;
+}
+
 #story-ingredients-container {
     margin-bottom: 20px;
 }

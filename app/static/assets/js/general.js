@@ -10,6 +10,7 @@ window.uploadingFeedback = null;
 window.audioProcessingSection = null;
 window.whisperLoading = null;
 window.uploadedAudio = null;
+window.storyTranscription = null;
 window.storyDescription = null;
 window.storyIngredientsContainer = null;
 window.storyIngredientsTextarea = null;
@@ -60,7 +61,6 @@ window.userCanceledMidUpload = false;
 window.sceneGenerated = [];
 window.uploadAbortController = null;
 window.chunksData = [];
-// The crucial fix: define isGeneratingImage on window to avoid "before initialization"
 window.isGeneratingImage = false;
 window.aspectRatio = 1.0;
 
@@ -119,7 +119,7 @@ window.formatDuration = function(startSec, endSec) {
     return `from ${s} to ${e}`;
 };
 
-// Utility: reset UI
+// Utility: resetUI
 window.resetUI = function() {
     window.currentJobId = null;
     window.totalScenes = 0;
@@ -130,50 +130,51 @@ window.resetUI = function() {
     window.chunksData = [];
 
     // Show initial UI again
-    initialUIContainer.style.display = 'block';
+    if (initialUIContainer) initialUIContainer.style.display = 'block';
 
-    // Reset form to defaults or blank
-    wordsPerSceneInput.value = '{{ default_words_per_scene }}';
-    textModelInput.value = '{{ default_text_model }}';
-    aiSizeSelect.value = '{{ default_images_ai_requested_size }}';
-    videoSizeSelect.value = '{{ default_video_size }}';
-    imagePromptStyleTextarea.value = `{{ default_image_prompt_style|replace("\n", "\\n") }}`;
-    charactersPromptStyleTextarea.value = `{{ default_characters_prompt_style|replace("\n", "\\n") }}`;
-    imagePreprocessingPromptTextarea.value = `{{ default_image_preprocessing_prompt|replace("\n", "\\n") }}`;
-    audioFileInput.value = '';
-    fadeInInput.value = '{{ default_fade_in }}';
-    fadeOutInput.value = '{{ default_fade_out }}';
-    crossfadeInput.value = '{{ default_crossfade_dur }}';
+    // Do NOT override the text in the initial screen textareas:
+    // (We just hide advanced sections on error.)
+    if (uploadingSection) uploadingSection.style.display = 'none';
+    if (audioProcessingSection) audioProcessingSection.style.display = 'none';
+    if (storyTranscription) {
+        storyTranscription.textContent = '';
+        storyTranscription.style.display = 'none';
+    }
+    if (whisperLoading) whisperLoading.style.display = 'none';
+    if (storyDescription) storyDescription.style.display = 'none';
+    if (storyIngredientsContainer) storyIngredientsContainer.style.display = 'none';
 
-    uploadingSection.style.display = 'none';
-    audioProcessingSection.style.display = 'none';
-    storyDescription.style.display = 'none';
-    storyIngredientsContainer.style.display = 'none';
+    if (videoGenerationSection) videoGenerationSection.style.display = 'none';
+    if (finalVideoSection) finalVideoSection.style.display = 'none';
+    if (chunkProcessingStatus) {
+        chunkProcessingStatus.style.display = 'none';
+        chunkProcessingStatus.textContent = '';
+    }
 
-    videoGenerationSection.style.display = 'none';
-    finalVideoSection.style.display = 'none';
-    chunkProcessingStatus.style.display = 'none';
+    if (scenesContainer) scenesContainer.innerHTML = '';
+    if (uploadedAudio) uploadedAudio.src = '';
+    if (generateVideoBtn) {
+        generateVideoBtn.disabled = true;
+        generateVideoBtn.style.display = 'inline-block';
+    }
+    if (videoProgress) {
+        videoProgress.style.display = 'none';
+        videoProgress.textContent = '';
+    }
+    if (finalVideoSource) finalVideoSource.src = '';
+    if (finalVideo) finalVideo.load();
+    if (finalVideoPathEl) finalVideoPathEl.textContent = '';
 
-    scenesContainer.innerHTML = '';
-    uploadedAudio.src = '';
-    whisperLoading.style.display = 'none';
-    generateVideoBtn.disabled = true;
-    generateVideoBtn.style.display = 'inline-block';
-    videoProgress.style.display = 'none';
-    videoProgress.textContent = '';
-    finalVideoSource.src = '';
-    finalVideo.load();
-    finalVideoPathEl.textContent = '';
-
-    mainHeader.textContent = "Make your story alive";
+    if (mainHeader) mainHeader.textContent = "Make your story alive";
 };
 
 // Update crop rect
 window.updateCropRect = function() {
-    window.cropRect.style.left = window.rectX + 'px';
-    window.cropRect.style.top = window.rectY + 'px';
-    window.cropRect.style.width = window.rectW + 'px';
-    window.cropRect.style.height = window.rectH + 'px';
+    if (!cropRect) return;
+    cropRect.style.left = window.rectX + 'px';
+    cropRect.style.top = window.rectY + 'px';
+    cropRect.style.width = window.rectW + 'px';
+    cropRect.style.height = window.rectH + 'px';
 };
 
 // Enable/disable scene card image buttons
@@ -183,6 +184,7 @@ window.disableAllImageButtons = function() {
     allRegen.forEach(btn => { btn.disabled = true; });
     allSelect.forEach(btn => { btn.disabled = true; });
 };
+
 window.enableAllImageButtons = function() {
     const allRegen = document.querySelectorAll('.regenerate-btn');
     const allSelect = document.querySelectorAll('.scene-card figcaption button:nth-of-type(2)');
@@ -190,7 +192,7 @@ window.enableAllImageButtons = function() {
     allSelect.forEach(btn => { btn.disabled = false; });
 };
 
-// Hook DOMContentLoaded to get references
+// DOMContentLoaded => references
 document.addEventListener('DOMContentLoaded', function() {
     window.initialUIContainer = document.getElementById('initial-ui-container');
     window.audioFileInput      = document.getElementById('audio-file-input');
@@ -202,6 +204,7 @@ document.addEventListener('DOMContentLoaded', function() {
     window.audioProcessingSection  = document.getElementById('audio-processing-section');
     window.whisperLoading          = document.getElementById('whisper-loading');
     window.uploadedAudio           = document.getElementById('uploaded-audio');
+    window.storyTranscription      = document.getElementById('story-transcription');
     window.storyDescription        = document.getElementById('story-description');
     window.storyIngredientsContainer = document.getElementById('story-ingredients-container');
     window.storyIngredientsTextarea  = document.getElementById('story-ingredients-textarea');
@@ -239,11 +242,13 @@ document.addEventListener('DOMContentLoaded', function() {
     window.cropConfirmBtn         = document.getElementById('crop-confirm');
 
     // Basic dragging for the cropRect
-    window.cropRect.addEventListener('mousedown', (e) => {
-        window.dragging = true;
-        window.dragOffsetX = e.offsetX;
-        window.dragOffsetY = e.offsetY;
-    });
+    if (cropRect) {
+        cropRect.addEventListener('mousedown', (e) => {
+            window.dragging = true;
+            window.dragOffsetX = e.offsetX;
+            window.dragOffsetY = e.offsetY;
+        });
+    }
     document.addEventListener('mouseup', () => {
         window.dragging = false;
     });
@@ -270,9 +275,11 @@ document.addEventListener('DOMContentLoaded', function() {
         updateCropRect();
     });
 
-    window.cropCancelBtn.addEventListener('click', () => {
-        window.localImageCropModal.style.display = 'none';
-        window.isGeneratingImage = false;
-        enableAllImageButtons();
-    });
+    if (cropCancelBtn) {
+        cropCancelBtn.addEventListener('click', () => {
+            window.localImageCropModal.style.display = 'none';
+            window.isGeneratingImage = false;
+            enableAllImageButtons();
+        });
+    }
 });

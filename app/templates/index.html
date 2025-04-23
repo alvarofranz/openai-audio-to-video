@@ -55,7 +55,7 @@
                 <div class="form-group">
                     <label for="ai-size-select">AI Image Size:</label>
                     <select id="ai-size-select">
-                        <!-- For now, just populate the default as a single option -->
+                        <!-- For now, just the default as a single option -->
                         <option value="{{ default_images_ai_requested_size }}" selected>
                             {{ default_images_ai_requested_size }}
                         </option>
@@ -65,7 +65,7 @@
                 <div class="form-group">
                     <label for="video-size">Final Video Size:</label>
                     <select id="video-size">
-                        <!-- Default 1920x1080, no need for more options -->
+                        <!-- Default 1920x1080 -->
                         <option value="{{ default_video_size }}" selected>
                             {{ default_video_size }}
                         </option>
@@ -171,7 +171,7 @@
         </form>
     </div>
 
-    <!-- Step 1.5: Show "Uploading audio..." with a Cancel button while the request is in flight -->
+    <!-- Step 1.5: Show "Uploading audio..." with a Cancel button during POST -->
     <div id="uploading-section" class="uploading-section" style="display:none;">
         <p id="uploading-feedback" class="loading-feedback">
             Uploading audio...
@@ -179,12 +179,20 @@
         <button id="upload-cancel-btn" class="red-button">Cancel</button>
     </div>
 
-    <!-- Step 2: After audio is uploaded & transcribed -->
+    <!-- Step 2: After audio is processed -->
     <div id="audio-processing-section" style="display:none;">
-        <audio controls id="uploaded-audio" class="uploaded-audio"></audio>
+
+        <!-- Show the raw transcription text right after we get it -->
+        <p id="story-transcription" style="display:none; white-space:pre-wrap;"></p>
+
+        <!-- A short "Extracting details..." or "Converting audio..." placeholder if needed -->
         <div id="whisper-loading" class="loading-feedback" style="display:none;">
-            Converting audio to text...
+            Extracting details...
         </div>
+
+        <audio controls id="uploaded-audio" class="uploaded-audio" style="margin-top:10px;"></audio>
+
+        <!-- Show the final story description -->
         <p id="story-description" class="story-description" style="display:none;"></p>
 
         <!-- Editable story ingredients + button to generate image prompts -->
@@ -205,7 +213,6 @@
         </div>
     </div>
 
-    <!-- We reintroduce the chunk-processing-status div so it's not null -->
     <div id="chunk-processing-status" class="loading-feedback" style="display:none;">
         Processing chunks...
     </div>
@@ -245,7 +252,7 @@
     </div>
 </div>
 
-<!-- Load JS in separate files to keep concerns clear -->
+<!-- Load JS -->
 <script src="{{ url_for('static', filename='assets/js/general.js') }}"></script>
 <script src="{{ url_for('static', filename='assets/js/audio-upload.js') }}"></script>
 <script src="{{ url_for('static', filename='assets/js/prompt-creation.js') }}"></script>

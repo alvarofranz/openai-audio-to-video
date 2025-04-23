@@ -12,13 +12,14 @@ from app.utils.prompt_utils import (
     generate_image_for_scene,
     preprocess_image_prompt,
     preprocess_story_data,
-    generate_title_and_description
+    generate_title_and_description,
+    image_prompts_adjustment
 )
 from defaults import (
     WORDS_PER_SCENE,
     TEXT_MODEL,
-    IMAGES_AI_REQUESTED_SIZE,  # renamed
-    VIDEO_SIZE,                 # new final video size
+    IMAGES_AI_REQUESTED_SIZE,
+    VIDEO_SIZE,
     IMAGE_PROMPT_STYLE,
     CHARACTERS_PROMPT_STYLE,
     IMAGE_PREPROCESSING_PROMPT,
@@ -37,7 +38,6 @@ def index():
         "index.html",
         default_words_per_scene=WORDS_PER_SCENE,
         default_text_model=TEXT_MODEL,
-        # Provide both sizes separately:
         default_video_size=VIDEO_SIZE,
         default_images_ai_requested_size=IMAGES_AI_REQUESTED_SIZE,
         default_image_prompt_style=IMAGE_PROMPT_STYLE,
@@ -50,23 +50,26 @@ def index():
 
 @main_bp.route("/upload-audio", methods=["POST"])
 def upload_audio():
+    """
+    1) Saves the audio file.
+    2) Transcribes using Whisper.
+    3) Returns the job_id + raw transcription immediately
+       so the UI can display audio + transcript right away.
+    """
     load_dotenv()
     api_key = os.getenv("OPENAI_API_KEY", "")
     if not api_key:
         return jsonify({"error": "OPENAI_API_KEY not set"}), 500
-    client = OpenAI(api_key=api_key)
 
+    client = OpenAI(api_key=api_key)
     file = request.files.get("audio")
     if not file:
         return jsonify({"error": "No file uploaded"}), 400
 
-    words_per_scene = request.form.get("words_per_scene", "40").strip()
-    text_model = request.form.get("text_model", "o4-mini").strip()
-
-    # Separate form fields for AI image request size vs. final video size:
+    words_per_scene_str = request.form.get("words_per_scene", f"{WORDS_PER_SCENE}").strip()
+    text_model = request.form.get("text_model", TEXT_MODEL).strip()
     images_ai_size_str = request.form.get("images_ai_requested_size", IMAGES_AI_REQUESTED_SIZE).strip()
-    video_size_str     = request.form.get("video_size", VIDEO_SIZE).strip()
-
+    video_size_str = request.form.get("video_size", VIDEO_SIZE).strip()
     image_prompt_style = request.form.get("image_prompt_style", "")
     characters_prompt_style = request.form.get("characters_prompt_style", "")
     image_preprocessing_prompt = request.form.get("image_preprocessing_prompt", "")
@@ -74,7 +77,11 @@ def upload_audio():
     fade_out_str = request.form.get("fade_out", f"{FADE_OUT}").strip()
     crossfade_str = request.form.get("crossfade_dur", f"{CROSSFADE_DUR}").strip()
 
-    # Parse AI image request size
+    try:
+        wps = int(words_per_scene_str)
+    except:
+        wps = WORDS_PER_SCENE
+
     try:
         iwidth_str, iheight_str = images_ai_size_str.lower().split("x")
         images_ai_w = int(iwidth_str)
@@ -83,7 +90,6 @@ def upload_audio():
         images_ai_w = 1792
         images_ai_h = 1024
 
-    # Parse final video size
     try:
         vwidth_str, vheight_str = video_size_str.lower().split("x")
         video_width = int(vwidth_str)
@@ -91,11 +97,6 @@ def upload_audio():
     except:
         video_width = 1920
         video_height = 1080
-
-    try:
-        wps = int(words_per_scene)
-    except:
-        wps = 40
 
     try:
         fade_in_val = float(fade_in_str)
@@ -120,57 +121,111 @@ def upload_audio():
     audio_path = os.path.join(job_folder, file.filename)
     file.save(audio_path)
 
-    # Transcribe with Whisper
+    # Transcribe with Whisper (store segments in "whisper_data")
     try:
+        # This returns a 'TranscriptionVerbose' with .text and .segments
         whisper_data = transcribe_audio(client, audio_path)
     except Exception as e:
         return jsonify({"error": f"Failed to transcribe audio: {str(e)}"}), 500
 
     full_text = whisper_data.text.strip()
-    log(f"Full Text: {full_text}", "routes")
+    log(f"Full Text for {job_id}: {full_text}", "routes")
 
-    # Title and description
-    td = generate_title_and_description(client, full_text, text_model)
-
-    # Preprocess story data to get "story_ingredients"
-    story_ingredients = preprocess_story_data(client, full_text, text_model, characters_prompt_style)
-
-    # Create chunks
-    chunks = chunk_transcript(whisper_data, wps)
-    if not chunks:
-        return jsonify({"error": "No scenes could be created."}), 500
-
-    # Store job data (no auto-generation of prompts!)
+    # Store partial job data, including the entire whisper_data
     CURRENT_JOBS[job_id] = {
         "audio_path": audio_path,
+        "whisper_data": whisper_data,  # store the entire object (so we can chunk later!)
         "full_text": full_text,
-        "chunks": chunks,
-        "images": [None]*len(chunks),
-        "prompts": [None]*len(chunks),
-        "title": td["title"],
-        "description": td["description"],
-        "job_folder": job_folder,
-        "story_ingredients": story_ingredients,
-        "characters_prompt_style": characters_prompt_style,
+
         "words_per_scene": wps,
         "text_model": text_model,
-        "video_width": video_width,       # final video dimension
-        "video_height": video_height,
-        "images_ai_width": images_ai_w,   # AI generation dimension
+        "images_ai_width": images_ai_w,
         "images_ai_height": images_ai_h,
+        "video_width": video_width,
+        "video_height": video_height,
         "image_prompt_style": image_prompt_style,
+        "characters_prompt_style": characters_prompt_style,
         "image_preprocessing_prompt": image_preprocessing_prompt,
         "fade_in": fade_in_val,
         "fade_out": fade_out_val,
-        "crossfade_dur": crossfade_val
+        "crossfade_dur": crossfade_val,
+
+        "title": None,
+        "description": None,
+        "story_ingredients": None,
+        "chunks": None,
+        "images": None,
+        "prompts": None,
+        "job_folder": job_folder
     }
 
-    # Return only job info, story ingredients, and the chunk breakdown
+    # Return job_id + the transcribed text
     return jsonify({
         "job_id": job_id,
+        "full_text": full_text
+    })
+
+@main_bp.route("/extract-details", methods=["POST"])
+def extract_details():
+    """
+    1) Takes job_id, loads the stored whisper_data,
+    2) Generates title, description, story ingredients,
+    3) Chunks the transcript from the stored segments,
+    4) Allocates images/prompts arrays,
+    5) Returns them.
+    """
+    load_dotenv()
+    api_key = os.getenv("OPENAI_API_KEY", "")
+    if not api_key:
+        return jsonify({"error": "OPENAI_API_KEY not set"}), 500
+    client = OpenAI(api_key=api_key)
+
+    data = request.json
+    job_id = data.get("job_id")
+    job_data = CURRENT_JOBS.get(job_id)
+    if not job_data:
+        return jsonify({"error": "No such job"}), 400
+
+    full_text = job_data.get("full_text", "")
+    if not full_text:
+        return jsonify({"error": "No transcription found"}), 400
+
+    text_model = job_data["text_model"]
+    characters_prompt_style = job_data["characters_prompt_style"]
+    wps = job_data["words_per_scene"]
+
+    # 1) Title & desc
+    try:
+        td = generate_title_and_description(client, full_text, text_model)
+    except Exception as e:
+        return jsonify({"error": f"Failed to get title/description: {str(e)}"}), 500
+
+    # 2) story_ingredients
+    try:
+        si = preprocess_story_data(client, full_text, text_model, characters_prompt_style)
+    except Exception as e:
+        return jsonify({"error": f"Failed to get story ingredients: {str(e)}"}), 500
+
+    # 3) chunk using the stored whisper_data
+    try:
+        chunks = chunk_transcript(job_data["whisper_data"], wps)
+    except Exception as e:
+        return jsonify({"error": f"Failed to chunk transcript: {str(e)}"}), 500
+
+    if not chunks:
+        return jsonify({"error": "No chunks created."}), 500
+
+    job_data["title"] = td["title"]
+    job_data["description"] = td["description"]
+    job_data["story_ingredients"] = si
+    job_data["chunks"] = chunks
+    job_data["images"] = [None]*len(chunks)
+    job_data["prompts"] = [None]*len(chunks)
+
+    return jsonify({
         "title": td["title"],
         "description": td["description"],
-        "story_ingredients": story_ingredients,
+        "story_ingredients": si,
         "chunks": [
             {
                 "index": i,
@@ -187,8 +242,8 @@ def preprocess_chunk():
     api_key = os.getenv("OPENAI_API_KEY", "")
     if not api_key:
         return jsonify({"error": "OPENAI_API_KEY not set"}), 500
-    client = OpenAI(api_key=api_key)
 
+    client = OpenAI(api_key=api_key)
     data = request.json
     job_id = data.get("job_id")
     chunk_index = data.get("chunk_index")
@@ -198,7 +253,6 @@ def preprocess_chunk():
     if not job_data:
         return jsonify({"error": "No such job"}), 400
 
-    # If user edited the story ingredients, update it in the job data
     if new_story_ingredients is not None:
         job_data["story_ingredients"] = new_story_ingredients
 
@@ -207,7 +261,6 @@ def preprocess_chunk():
     except (IndexError, KeyError):
         return jsonify({"error": "Invalid chunk index"}), 400
 
-    # Generate final prompt from the updated story ingredients
     final_prompt = preprocess_image_prompt(
         client=client,
         full_story=job_data["full_text"],
@@ -227,12 +280,13 @@ def generate_image_route():
     api_key = os.getenv("OPENAI_API_KEY", "")
     if not api_key:
         return jsonify({"error": "OPENAI_API_KEY not set"}), 500
-    client = OpenAI(api_key=api_key)
 
+    client = OpenAI(api_key=api_key)
     data = request.json
     job_id = data.get("job_id")
     scene_index = data.get("scene_index")
     new_prompt = data.get("new_prompt", "")
+
     job_data = CURRENT_JOBS.get(job_id)
     if not job_data:
         return jsonify({"error": "No such job"}), 400
@@ -248,10 +302,8 @@ def generate_image_route():
         )
         os.rename(existing_image_path, renamed_path)
 
-    # Update stored prompt
     job_data["prompts"][scene_index] = new_prompt
 
-    # Generate image via DALLE using the AI-requested size
     image_path = generate_image_for_scene(
         client=client,
         story_text=job_data["full_text"],
@@ -262,7 +314,7 @@ def generate_image_route():
         image_prompt_style=job_data["image_prompt_style"],
         image_preprocessing_prompt=job_data["image_preprocessing_prompt"],
         text_model=job_data["text_model"],
-        width=job_data["images_ai_width"],     # use AI size here
+        width=job_data["images_ai_width"],
         height=job_data["images_ai_height"],
         characters_prompt_style=job_data["characters_prompt_style"]
     )
@@ -271,8 +323,7 @@ def generate_image_route():
 
     job_data["images"][scene_index] = image_path
     rel_path = image_path.split("app/static/")[-1]
-    image_url = f"/static/{rel_path}"
-    return jsonify({"image_url": image_url})
+    return jsonify({"image_url": f"/static/{rel_path}"})
 
 @main_bp.route("/upload-local-image", methods=["POST"])
 def upload_local_image():
@@ -289,7 +340,6 @@ def upload_local_image():
     if not image_file:
         return jsonify({"error": "No image file provided"}), 400
 
-    # The bounding box in displayed coords
     box_x_str = request.form.get("box_x", "0")
     box_y_str = request.form.get("box_y", "0")
     box_w_str = request.form.get("box_w", "0")
@@ -319,9 +369,7 @@ def upload_local_image():
         os.rename(existing_path, renamed_path)
 
     output_path = os.path.join(images_folder, f"scene_{scene_index}.png")
-
     try:
-        # Final video dimension is job_data["video_width"] x job_data["video_height"]
         process_local_image(
             image_file.stream,
             output_path,
@@ -338,10 +386,8 @@ def upload_local_image():
         return jsonify({"error": f"Could not process/crop image: {str(e)}"}), 500
 
     job_data["images"][int(scene_index)] = output_path
-
     rel_path = output_path.split("app/static/")[-1]
-    image_url = f"/static/{rel_path}"
-    return jsonify({"image_url": image_url})
+    return jsonify({"image_url": f"/static/{rel_path}"})
 
 @main_bp.route("/create-video", methods=["POST"])
 def create_video_endpoint():
@@ -382,3 +428,48 @@ def cancel_job():
     if job_id in CURRENT_JOBS:
         del CURRENT_JOBS[job_id]
     return jsonify({"status": "cancelled"})
+
+@main_bp.route("/adjust-prompts", methods=["POST"])
+def adjust_prompts():
+    load_dotenv()
+    api_key = os.getenv("OPENAI_API_KEY", "")
+    if not api_key:
+        return jsonify({"error": "OPENAI_API_KEY not set"}), 500
+    client = OpenAI(api_key=api_key)
+
+    data = request.json
+    job_id = data.get("job_id")
+    job_data = CURRENT_JOBS.get(job_id)
+    if not job_data:
+        return jsonify({"error": "No such job"}), 400
+
+    full_text = job_data["full_text"]
+    story_ingredients = job_data["story_ingredients"]
+    text_model = job_data["text_model"]
+    scene_chunks = job_data["chunks"]
+    existing_prompts = job_data["prompts"]
+
+    try:
+        result = image_prompts_adjustment(
+            client=client,
+            full_story=full_text,
+            story_ingredients=story_ingredients,
+            scene_chunks=scene_chunks,
+            existing_prompts=existing_prompts,
+            text_model=text_model
+        )
+        if not result or "adjusted_scene_prompts" not in result:
+            return jsonify({"error": "Failed to parse adjusted prompts response"}), 500
+
+        adjusted_prompts = result["adjusted_scene_prompts"]
+        if len(adjusted_prompts) != len(existing_prompts):
+            return jsonify({"error": "Mismatch in adjusted prompts count"}), 500
+
+        for item in adjusted_prompts:
+            i = item["scene_index"]
+            job_data["prompts"][i] = item["prompt"]
+
+        return jsonify({"adjusted_prompts": adjusted_prompts})
+    except Exception as e:
+        log(f"Error adjusting prompts: {e}", "routes")
+        return jsonify({"error": str(e)}), 500
