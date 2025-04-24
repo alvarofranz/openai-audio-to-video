@@ -515,17 +515,40 @@ def adjust_prompts():
             text_model=text_model
         )
         if not result or "adjusted_scene_prompts" not in result:
-            return jsonify({"error": "Failed to parse adjusted prompts response"}), 500
+            # Just keep existing prompts
+            adjusted_prompts = []
+            for i, existing_prompt in enumerate(existing_prompts):
+                adjusted_prompts.append({
+                    "scene_index": i,
+                    "prompt": existing_prompt
+                })
+            return jsonify({"adjusted_prompts": adjusted_prompts})
 
         adjusted_prompts = result["adjusted_scene_prompts"]
         if len(adjusted_prompts) != len(existing_prompts):
-            return jsonify({"error": "Mismatch in adjusted prompts count"}), 500
+            # Mismatch => also just keep existing prompts
+            adjusted_prompts = []
+            for i, existing_prompt in enumerate(existing_prompts):
+                adjusted_prompts.append({
+                    "scene_index": i,
+                    "prompt": existing_prompt
+                })
+            return jsonify({"adjusted_prompts": adjusted_prompts})
 
+        # Otherwise, success. Overwrite the job_data prompts
         for item in adjusted_prompts:
             i = item["scene_index"]
             job_data["prompts"][i] = item["prompt"]
 
         return jsonify({"adjusted_prompts": adjusted_prompts})
+
     except Exception as e:
         log(f"Error adjusting prompts: {e}", "routes")
-        return jsonify({"error": str(e)}), 500
+        # On any exception => keep existing prompts
+        adjusted_prompts = []
+        for i, existing_prompt in enumerate(existing_prompts):
+            adjusted_prompts.append({
+                "scene_index": i,
+                "prompt": existing_prompt
+            })
+        return jsonify({"adjusted_prompts": adjusted_prompts})
