@@ -135,6 +135,48 @@ function updateReferenceFilesList() {
     });
 }
 
+function handleSelectLocalImage(sceneIndex) {
+    if (window.isGeneratingImage) return;
+    window.localImageSceneIndex = sceneIndex;
+
+    const [twStr, thStr] = window.videoSizeSelect.value.split('x');
+    const tw = parseInt(twStr, 10) || 1920;
+    const th = parseInt(thStr, 10) || 1080;
+    window.aspectRatio = tw / th;
+
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'image/*';
+
+    fileInput.onchange = () => {
+        if (!fileInput.files || !fileInput.files.length) return;
+        window.originalFile = fileInput.files[0];
+        if (!window.originalFile) return;
+
+        localImageCropModal.style.display = 'flex';
+
+        window.rectX = 0;
+        window.rectY = 0;
+        window.rectW = 100;
+        window.rectH = 100;
+        window.dragging = false;
+        window.dragOffsetX = 0;
+        window.dragOffsetY = 0;
+
+        const reader = new FileReader();
+        reader.onload = ev => {
+            if (localImagePreview) {
+                localImagePreview.src = ev.target.result;
+            }
+        };
+        reader.readAsDataURL(window.originalFile);
+    };
+    fileInput.click();
+}
+
+//
+// IMAGE GENERATION
+//
 async function handleGenerateImage(sceneIndex, textArea, imgEl, regenBtn, attempt = 1) {
     if (attempt === 1) {
         if (window.isGeneratingImage) return;
@@ -324,46 +366,6 @@ async function doEditSceneImage(sceneIndex, attempt) {
     window.currentEditSceneIndex = null;
     window.isGeneratingImage = false;
     enableAllImageButtons();
-}
-
-// Local image
-function handleSelectLocalImage(sceneIndex) {
-    if (window.isGeneratingImage) return;
-    window.localImageSceneIndex = sceneIndex;
-
-    const [twStr, thStr] = window.videoSizeSelect.value.split('x');
-    const tw = parseInt(twStr, 10) || 1920;
-    const th = parseInt(thStr, 10) || 1080;
-    window.aspectRatio = tw / th;
-
-    const fileInput = document.createElement('input');
-    fileInput.type = 'file';
-    fileInput.accept = 'image/*';
-
-    fileInput.onchange = () => {
-        if (!fileInput.files || !fileInput.files.length) return;
-        window.originalFile = fileInput.files[0];
-        if (!window.originalFile) return;
-
-        localImageCropModal.style.display = 'flex';
-
-        window.rectX = 0;
-        window.rectY = 0;
-        window.rectW = 100;
-        window.rectH = 100;
-        window.dragging = false;
-        window.dragOffsetX = 0;
-        window.dragOffsetY = 0;
-
-        const reader = new FileReader();
-        reader.onload = ev => {
-            if (localImagePreview) {
-                localImagePreview.src = ev.target.result;
-            }
-        };
-        reader.readAsDataURL(window.originalFile);
-    };
-    fileInput.click();
 }
 
 async function openCropModalFromURL(imageUrl, sceneIndex) {

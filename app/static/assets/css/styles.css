@@ -27,6 +27,7 @@ body {
     color: var(--text-color);
     font-family: 'Roboto', sans-serif;
     line-height: 1.5;
+    padding-bottom: 70px;
 }
 
 header {
@@ -58,11 +59,13 @@ main {
     gap: 20px;
     margin-bottom: 15px;
 }
+
 .form-group {
     display: flex;
     flex-direction: column;
     min-width: 200px;
 }
+
 .form-group.full-width {
     width: 100%;
 }
@@ -87,6 +90,7 @@ main {
     background: var(--dark-gray);
     color: var(--text-color);
 }
+
 .medium-input {
     width: 120px;
     padding: 5px;
@@ -107,15 +111,19 @@ button {
     border-radius: 6px;
     transition: background 0.2s ease;
 }
+
 button:hover {
     background: var(--hover-accent);
 }
+
 .red-button {
     background: var(--color-red);
 }
+
 .red-button:hover {
     background: var(--hover-red);
 }
+
 button:disabled {
     opacity: 0.5;
     cursor: not-allowed;
@@ -144,6 +152,7 @@ audio {
     border-radius: 8px;
     box-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
+
 .scene-card-content {
     display: flex;
     flex-direction: row;
@@ -152,11 +161,13 @@ audio {
     justify-content: space-between;
     min-height: 200px;
 }
+
 .tab-contents-wrapper {
     display: flex;
     flex-direction: column;
     flex: 1;
 }
+
 figure {
     margin: 0;
     position: relative;
@@ -166,12 +177,14 @@ figure {
     overflow: hidden;
     flex-shrink: 0;
 }
+
 figure img {
     border-radius: 6px;
     width: 100%;
     height: 100%;
     object-fit: cover;
 }
+
 figcaption {
     position: absolute;
     bottom: 10px;
@@ -179,6 +192,20 @@ figcaption {
     display: flex;
     flex-direction: row;
     gap: 5px;
+}
+
+.select-local-btn,
+.regenerate-btn,
+.edit-btn {
+    font-size: 0.85rem;
+    padding: 6px 8px;
+}
+
+.select-local-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    margin-left: 0;
 }
 
 .tabs-container {
@@ -189,6 +216,7 @@ figcaption {
     border-radius: 6px 6px 0 0;
     overflow: hidden;
 }
+
 .tab-button {
     flex: 1;
     text-align: center;
@@ -198,21 +226,26 @@ figcaption {
     border: none;
     transition: background 0.2s ease;
 }
+
 .tab-button:hover {
     background: #4f4f4f;
 }
+
 .tab-button.active {
     background: var(--accent-color);
 }
+
 .tab-content {
     display: none;
     border: 1px solid var(--border-color);
     border-top: none;
     border-radius: 0 0 6px 6px;
 }
+
 .tab-content.active {
     display: block;
 }
+
 .tab-content-prompt textarea {
     font-size: 1rem;
     line-height: 1.4;
@@ -228,6 +261,7 @@ figcaption {
     outline: none;
     padding: 8px;
 }
+
 .tab-content-text .scene-text-block {
     background: var(--dark-gray);
     border: none;
@@ -243,6 +277,7 @@ figcaption {
 #final-video-section {
     text-align: center;
 }
+
 #final-video {
     max-width: 500px;
     width: 100%;
@@ -251,11 +286,13 @@ figcaption {
     border-radius: 8px;
     overflow: hidden;
 }
+
 #final-video-path {
     font-size: 0.9rem;
     color: #bbb;
     margin-top: -10px;
 }
+
 #video-progress {
     display: none;
     color: white;
@@ -264,7 +301,7 @@ figcaption {
     border-radius: 4px;
 }
 
-/* Simple local image crop overlay - no libraries */
+/* Simple local image crop overlay */
 .simple-crop-overlay {
     position: fixed;
     top: 0;
@@ -277,6 +314,7 @@ figcaption {
     justify-content: center;
     z-index: 9999;
 }
+
 .simple-crop-content {
     background: #333;
     padding: 20px;
@@ -287,6 +325,7 @@ figcaption {
     flex-direction: column;
     gap: 10px;
 }
+
 .crop-container {
     position: relative;
     overflow: auto;
@@ -294,17 +333,20 @@ figcaption {
     background: #222;
     text-align: center;
 }
+
 #local-image-preview {
     max-width: 100%;
     display: block;
     margin: 0 auto;
 }
+
 #crop-rect {
     position: absolute;
     border: 2px dashed var(--color-orange);
     cursor: move;
     box-sizing: border-box;
 }
+
 /* "cancel" / "confirm" row */
 .btn-row {
     display: flex;
@@ -312,9 +354,9 @@ figcaption {
     gap: 10px;
 }
 
-/* Additional for reference bar & edit modal */
+/* Reference bar */
 #reference-bar {
-    display: none;
+    display: none; /* Hidden until story is ready */
     position: fixed;
     bottom: 0;
     left: 0;
@@ -326,16 +368,19 @@ figcaption {
     gap: 10px;
     z-index: 999;
 }
+
 #reference-bar h3 {
     margin: 0;
     font-size: 1rem;
 }
+
 #reference-files-list {
     display: flex;
     gap: 8px;
     flex-wrap: wrap;
     align-items: center;
 }
+
 .ref-thumb {
     width: 40px;
     height: 40px;
@@ -357,13 +402,15 @@ figcaption {
     justify-content: center;
     z-index: 10000;
 }
+
 #edit-image-modal-content {
     background: #444;
     padding: 20px;
     border-radius: 6px;
-    width: 400px;
-    max-width: 90%;
+    width: 80vw;
+    max-width: 600px;
 }
+
 #edit-modal-textarea {
     width: 100%;
     height: 120px;
@@ -373,7 +420,9 @@ figcaption {
     border-radius: 4px;
     resize: vertical;
     padding: 8px;
+    box-sizing: border-box;
 }
+
 .edit-modal-buttons {
     margin-top: 10px;
     display: flex;

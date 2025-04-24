@@ -174,13 +174,14 @@ function createSceneCard(sceneIndex) {
     const regenBtn = document.createElement('button');
     regenBtn.textContent = 'Generate';
     regenBtn.classList.add('regenerate-btn');
-    regenBtn.disabled = true; // will enable after prompts are generated
+    regenBtn.disabled = true;
     regenBtn.addEventListener('click', () =>
         handleGenerateImage(sceneIndex, textArea, imgEl, regenBtn)
     );
 
     const selectLocalBtn = document.createElement('button');
     selectLocalBtn.textContent = 'Select Image';
+    regenBtn.classList.add('select-local-btn');
     selectLocalBtn.disabled = true;
     selectLocalBtn.addEventListener('click', () =>
         handleSelectLocalImage(sceneIndex)
@@ -189,7 +190,7 @@ function createSceneCard(sceneIndex) {
     const editBtn = document.createElement('button');
     editBtn.textContent = 'Edit';
     editBtn.classList.add('edit-btn');
-    editBtn.disabled = true; // will enable once an image is actually generated/selected
+    editBtn.disabled = true;
     editBtn.style.display = 'none';
     editBtn.addEventListener('click', () =>
         handleEditSceneImage(sceneIndex)
