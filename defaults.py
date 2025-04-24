@@ -17,7 +17,6 @@ Pueden ser "humanos" o pueden ser "magikitos: duende de porcelana viviente, con 
 Cualquier otra criatura que no sea un humano o "duende de porcelana viviente, con orejas puntiagudas élficas y piel de porcelana de color melocotón claro, orejas puntiagudas, diseño encantador" se diferenciará claramente; pueden ser aves, ranas, insectos... para estos utiliza la descripción que prefieras, siempre presentando criaturas mágicas agradables, amables y acogedoras."""
 )
 
-
 IMAGE_PREPROCESSING_PROMPT = (
 """You are a prompt preprocessor specialized in generating prompts for images that will be part of a sequence in a larger story. I will provide you with the style and the entire story for context, as well as the details for this specific image and its elements.
 

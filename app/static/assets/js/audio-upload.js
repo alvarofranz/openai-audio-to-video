@@ -169,39 +169,34 @@ function createSceneCard(sceneIndex) {
     const imgEl = document.createElement('img');
     imgEl.src = '/static/assets/img/placeholder.png';
 
-    const figCaption = document.createElement('figcaption');
-
+    // "Generate" button
     const regenBtn = document.createElement('button');
     regenBtn.textContent = 'Generate';
     regenBtn.classList.add('regenerate-btn');
     regenBtn.disabled = true;
-    regenBtn.addEventListener('click', () =>
-        handleGenerateImage(sceneIndex, textArea, imgEl, regenBtn)
-    );
 
+    // "Select Image" button (top right)
     const selectLocalBtn = document.createElement('button');
     selectLocalBtn.textContent = 'Select Image';
-    regenBtn.classList.add('select-local-btn');
+    selectLocalBtn.classList.add('select-local-btn');
     selectLocalBtn.disabled = true;
-    selectLocalBtn.addEventListener('click', () =>
-        handleSelectLocalImage(sceneIndex)
-    );
 
+    // "Edit" button
     const editBtn = document.createElement('button');
     editBtn.textContent = 'Edit';
     editBtn.classList.add('edit-btn');
     editBtn.disabled = true;
     editBtn.style.display = 'none';
-    editBtn.addEventListener('click', () =>
-        handleEditSceneImage(sceneIndex)
-    );
 
-    figCaption.appendChild(regenBtn);
-    figCaption.appendChild(selectLocalBtn);
-    figCaption.appendChild(editBtn);
+    // Bottom buttons container
+    const bottomBtnsDiv = document.createElement('div');
+    bottomBtnsDiv.classList.add('bottom-buttons');
+    bottomBtnsDiv.appendChild(regenBtn);
+    bottomBtnsDiv.appendChild(editBtn);
 
     figureEl.appendChild(imgEl);
-    figureEl.appendChild(figCaption);
+    figureEl.appendChild(selectLocalBtn);
+    figureEl.appendChild(bottomBtnsDiv);
 
     const cardContent = document.createElement('div');
     cardContent.className = 'scene-card-content';
@@ -216,6 +211,7 @@ function createSceneCard(sceneIndex) {
     cardContent.appendChild(figureEl);
     sceneCard.appendChild(cardContent);
 
+    // Tab logic
     tabBtnPrompt.addEventListener('click', () => {
         tabBtnPrompt.classList.add('active');
         tabBtnText.classList.remove('active');
@@ -230,6 +226,19 @@ function createSceneCard(sceneIndex) {
     });
 
     fillSceneText(sceneIndex, sceneTextBlock);
+
+    // Add event handlers for "Generate" and "Select" and "Edit"
+    regenBtn.addEventListener('click', () =>
+        handleGenerateImage(sceneIndex, textArea, imgEl, regenBtn)
+    );
+
+    selectLocalBtn.addEventListener('click', () =>
+        handleSelectLocalImage(sceneIndex)
+    );
+
+    editBtn.addEventListener('click', () =>
+        handleEditSceneImage(sceneIndex)
+    );
 
     return sceneCard;
 }

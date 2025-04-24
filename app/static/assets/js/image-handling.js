@@ -1,9 +1,9 @@
 // Manages AI image generation/edit, local image cropping, and references logic
 
 document.addEventListener('DOMContentLoaded', function() {
-    // Save references to the reference bar elements on window.* like the others
+    // We only have a single "Add reference images" button now:
     window.refFileInput = document.getElementById("reference-file-input");
-    window.refUploadBtn = document.getElementById("reference-upload-btn");
+    window.refOpenFileBtn = document.getElementById("reference-open-file-btn");
 
     // Overwrite the default cropConfirmBtn
     if (cropConfirmBtn) {
@@ -54,9 +54,16 @@ document.addEventListener('DOMContentLoaded', function() {
         };
     }
 
-    // Set up reference upload button event
-    if (window.refUploadBtn && window.refFileInput) {
-        window.refUploadBtn.addEventListener("click", handleUploadReferenceFiles);
+    // [ADDED] Trigger file input on button click
+    if (window.refOpenFileBtn && window.refFileInput) {
+        window.refOpenFileBtn.addEventListener("click", () => {
+            window.refFileInput.click();
+        });
+    }
+
+    // [ADDED] Whenever the hidden input changes, upload references
+    if (window.refFileInput) {
+        window.refFileInput.addEventListener("change", handleUploadReferenceFiles);
     }
 
     // edit modal
@@ -81,12 +88,15 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // Reference images local array
-window.referenceImagesLocal = [];  // will hold { filename, url }
+window.referenceImagesLocal = [];  // { filename, url, selected: bool }
 
 async function handleUploadReferenceFiles() {
+    // If no files, do nothing
     if (!window.refFileInput.files.length) return;
     if (!window.currentJobId) {
         alert("No active job. Please upload audio first.");
+        // Clear the file input to avoid re-triggering
+        window.refFileInput.value = "";
         return;
     }
     disableAllImageButtons();
@@ -107,17 +117,18 @@ async function handleUploadReferenceFiles() {
                 console.error("Error uploading reference:", data.error);
                 continue;
             }
-            // push to referenceImagesLocal
+            // store 'selected: true' by default
             window.referenceImagesLocal.push({
                 filename: data.reference_path,
-                url: URL.createObjectURL(f)
+                url: URL.createObjectURL(f),
+                selected: true
             });
             updateReferenceFilesList();
         } catch (err) {
             console.error("Error uploading reference file:", err);
         }
     }
-    // clear file input
+    // Clear file input
     window.refFileInput.value = "";
     window.isGeneratingImage = false;
     enableAllImageButtons();
@@ -127,12 +138,63 @@ function updateReferenceFilesList() {
     const listEl = document.getElementById("reference-files-list");
     if (!listEl) return;
     listEl.innerHTML = "";
-    window.referenceImagesLocal.forEach(ref => {
+    window.referenceImagesLocal.forEach((ref, index) => {
         const img = document.createElement("img");
         img.src = ref.url;
         img.className = "ref-thumb";
+
+        if (ref.selected) {
+            img.classList.add("selected");
+        } else {
+            img.classList.add("unselected");
+        }
+
+        // Toggle selection on click
+        img.addEventListener("click", () => {
+            ref.selected = !ref.selected;
+            if (ref.selected) {
+                img.classList.remove("unselected");
+                img.classList.add("selected");
+            } else {
+                img.classList.remove("selected");
+                img.classList.add("unselected");
+            }
+        });
+
+        // [CHANGED] Add delayed preview (300ms)
+        let hoverTimer = null;
+        img.addEventListener("mouseenter", () => {
+            hoverTimer = setTimeout(() => {
+                showReferencePreview(ref.url);
+            }, 300); // CHANGED from 500 to 300
+        });
+        img.addEventListener("mouseleave", () => {
+            if (hoverTimer) {
+                clearTimeout(hoverTimer);
+                hoverTimer = null;
+            }
+            hideReferencePreview();
+        });
+
         listEl.appendChild(img);
     });
+}
+
+// Show the full-screen overlay in center
+function showReferencePreview(imageUrl) {
+    console.log('triggered');
+    const previewEl = document.getElementById("reference-hover-preview");
+    const previewImg = document.getElementById("reference-hover-preview-img");
+    if (!previewEl || !previewImg) return;
+
+    previewImg.src = imageUrl;
+    previewEl.style.display = "flex";
+}
+
+function hideReferencePreview() {
+    const previewEl = document.getElementById("reference-hover-preview");
+    if (!previewEl) return;
+    previewEl.style.display = "none";
 }
 
 function handleSelectLocalImage(sceneIndex) {
@@ -174,9 +236,6 @@ function handleSelectLocalImage(sceneIndex) {
     fileInput.click();
 }
 
-//
-// IMAGE GENERATION
-//
 async function handleGenerateImage(sceneIndex, textArea, imgEl, regenBtn, attempt = 1) {
     if (attempt === 1) {
         if (window.isGeneratingImage) return;
@@ -186,8 +245,10 @@ async function handleGenerateImage(sceneIndex, textArea, imgEl, regenBtn, attemp
     regenBtn.textContent = `Generating... (# ${attempt})`;
     disableAllImageButtons();
 
-    // references => the list of all uploaded references
-    let refs = window.referenceImagesLocal.map(r => r.filename);
+    // Only include selected references
+    let refs = window.referenceImagesLocal
+        .filter(r => r.selected)
+        .map(r => r.filename);
 
     const [twStr, thStr] = window.videoSizeSelect.value.split('x');
     const tw = parseInt(twStr, 10) || 1920;

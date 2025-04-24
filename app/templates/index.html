@@ -49,34 +49,33 @@
                     >
                 </div>
 
+                <!-- [CHANGED] Quality options -->
                 <div class="form-group">
                     <label for="images-ai-quality">Images Quality:</label>
                     <select id="images-ai-quality">
-                        <option value="{{ default_image_quality }}" selected>
-                            {{ default_image_quality }}
-                        </option>
-                        <option value="low">Low</option>
+                        <option value="auto" {% if default_image_quality == 'auto' %}selected{% endif %}>auto</option>
+                        <option value="low" {% if default_image_quality == 'low' %}selected{% endif %}>low</option>
+                        <option value="medium" {% if default_image_quality == 'medium' %}selected{% endif %}>medium</option>
+                        <option value="high" {% if default_image_quality == 'high' %}selected{% endif %}>high</option>
                     </select>
                 </div>
             </div>
 
-            <!-- Separate size selectors: AI image size & final video size -->
+            <!-- [CHANGED] Separate size selectors with all requested options -->
             <div class="form-section">
                 <div class="form-group">
                     <label for="ai-size-select">AI Image Size:</label>
                     <select id="ai-size-select">
-                        <option value="{{ default_images_ai_requested_size }}" selected>
-                            {{ default_images_ai_requested_size }}
-                        </option>
+                        <option value="1536x1024" {% if default_images_ai_requested_size == '1536x1024' %}selected{% endif %}>1536x1024</option>
+                        <option value="1024x1024" {% if default_images_ai_requested_size == '1024x1024' %}selected{% endif %}>1024x1024</option>
                     </select>
                 </div>
 
                 <div class="form-group">
                     <label for="video-size">Final Video Size:</label>
                     <select id="video-size">
-                        <option value="{{ default_video_size }}" selected>
-                            {{ default_video_size }}
-                        </option>
+                        <option value="1920x1080" {% if default_video_size == '1920x1080' %}selected{% endif %}>1920x1080</option>
+                        <option value="1024x1024" {% if default_video_size == '1024x1024' %}selected{% endif %}>1024x1024</option>
                     </select>
                 </div>
             </div>
@@ -263,12 +262,24 @@
     </div>
 </div>
 
-<!-- Fixed bottom bar for reference images -->
+<!-- Reference bar (no label) -->
 <div id="reference-bar">
-    <h3>Reference Images</h3>
-    <input type="file" id="reference-file-input" accept="image/*" multiple />
-    <button id="reference-upload-btn">Add</button>
+    <!-- Hidden file input -->
+    <input
+            type="file"
+            id="reference-file-input"
+            accept="image/*"
+            multiple
+            style="display:none;"
+    />
+    <!-- Single button to open file selector -->
+    <button id="reference-open-file-btn">Add reference images</button>
     <div id="reference-files-list"></div>
+</div>
+
+<!-- Hover preview overlay -->
+<div id="reference-hover-preview" style="display:none;">
+    <img id="reference-hover-preview-img" src="" alt="Reference Preview" />
 </div>
 
 <script src="{{ url_for('static', filename='assets/js/general.js') }}"></script>

@@ -66,6 +66,7 @@ python create_video.py ./demo/audio-file.mp3
 
 ## Changelog
 
+- `APR 23, 2025:` Added support for new image generation model, edit image mode and reference images library.
 - `APR 22, 2025:` Added feature to select local image and image cropping.
 - `APR 21, 2025:` Added fade-in, fade-out and cross-fade transitions.
 - `APR 18, 2025:` Liked the idea and added a UI for more control of each scene.

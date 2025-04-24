@@ -185,7 +185,18 @@ figure img {
     object-fit: cover;
 }
 
-figcaption {
+/* Removed the figcaption block; now we position buttons ourselves */
+
+/* Top-right button */
+.select-local-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    margin-left: 0;
+}
+
+/* Bottom-right container for "Generate" and "Edit" */
+.bottom-buttons {
     position: absolute;
     bottom: 10px;
     right: 10px;
@@ -194,18 +205,13 @@ figcaption {
     gap: 5px;
 }
 
-.select-local-btn,
-.regenerate-btn,
-.edit-btn {
-    font-size: 0.85rem;
-    padding: 6px 8px;
-}
-
-.select-local-btn {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    margin-left: 0;
+.tab-container {
+    display: flex;
+    margin: 0;
+    border: 1px solid var(--border-color);
+    border-bottom: none;
+    border-radius: 6px 6px 0 0;
+    overflow: hidden;
 }
 
 .tabs-container {
@@ -369,11 +375,6 @@ figcaption {
     z-index: 999;
 }
 
-#reference-bar h3 {
-    margin: 0;
-    font-size: 1rem;
-}
-
 #reference-files-list {
     display: flex;
     gap: 8px;
@@ -387,6 +388,7 @@ figcaption {
     object-fit: cover;
     border: 1px solid var(--border-color);
     border-radius: 4px;
+    cursor: pointer;
 }
 
 /* Edit modal */
@@ -428,4 +430,38 @@ figcaption {
     display: flex;
     justify-content: flex-end;
     gap: 10px;
+}
+
+/* Reference images selection states */
+.ref-thumb.selected {
+    border: 2px solid var(--color-green);
+}
+.ref-thumb.unselected {
+    border: 2px solid var(--color-red);
+}
+
+/* Hover preview overlay (modal) in center */
+#reference-hover-preview {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.75);
+    display: none;
+    align-items: center;
+    justify-content: center;
+}
+
+#reference-hover-preview-img {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translateX(-50%) translateY(-50%);
+    width: 500px;
+    height: auto;
+    max-width: 80vw;
+    max-height: 60vh;
+    box-shadow: 0 0 20px rgba(255,255,255,0.6);
+    border-radius: 4px;
 }
