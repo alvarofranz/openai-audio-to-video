@@ -27,7 +27,6 @@
     <div class="settings-container" id="initial-ui-container">
         <form id="settings-form" class="settings-form">
             <h2>Video & Prompt Settings</h2>
-
             <div class="form-section">
                 <div class="form-group">
                     <label for="words-per-scene">Words per scene:</label>
@@ -38,7 +37,6 @@
                             class="small-input"
                     >
                 </div>
-
                 <div class="form-group">
                     <label for="text-model">Text model:</label>
                     <input
@@ -48,20 +46,9 @@
                             class="medium-input"
                     >
                 </div>
-
-                <!-- [CHANGED] Quality options -->
-                <div class="form-group">
-                    <label for="images-ai-quality">Images Quality:</label>
-                    <select id="images-ai-quality">
-                        <option value="auto" {% if default_image_quality == 'auto' %}selected{% endif %}>auto</option>
-                        <option value="low" {% if default_image_quality == 'low' %}selected{% endif %}>low</option>
-                        <option value="medium" {% if default_image_quality == 'medium' %}selected{% endif %}>medium</option>
-                        <option value="high" {% if default_image_quality == 'high' %}selected{% endif %}>high</option>
-                    </select>
-                </div>
             </div>
 
-            <!-- [CHANGED] Separate size selectors with all requested options -->
+            <!-- Separate size selectors with all requested options -->
             <div class="form-section">
                 <div class="form-group">
                     <label for="ai-size-select">AI Image Size:</label>
@@ -70,12 +57,20 @@
                         <option value="1024x1024" {% if default_images_ai_requested_size == '1024x1024' %}selected{% endif %}>1024x1024</option>
                     </select>
                 </div>
-
                 <div class="form-group">
                     <label for="video-size">Final Video Size:</label>
                     <select id="video-size">
                         <option value="1920x1080" {% if default_video_size == '1920x1080' %}selected{% endif %}>1920x1080</option>
                         <option value="1024x1024" {% if default_video_size == '1024x1024' %}selected{% endif %}>1024x1024</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="images-ai-quality">Images Quality:</label>
+                    <select id="images-ai-quality">
+                        <option value="auto" {% if default_image_quality == 'auto' %}selected{% endif %}>auto</option>
+                        <option value="low" {% if default_image_quality == 'low' %}selected{% endif %}>low</option>
+                        <option value="medium" {% if default_image_quality == 'medium' %}selected{% endif %}>medium</option>
+                        <option value="high" {% if default_image_quality == 'high' %}selected{% endif %}>high</option>
                     </select>
                 </div>
             </div>
@@ -92,7 +87,6 @@
                             step="0.1"
                     >
                 </div>
-
                 <div class="form-group">
                     <label for="fade-out">End Fade Out (seconds):</label>
                     <input
@@ -104,7 +98,6 @@
                             step="0.1"
                     >
                 </div>
-
                 <div class="form-group">
                     <label for="crossfade-dur">Transitions Crossfade (seconds):</label>
                     <input
@@ -130,7 +123,6 @@
                     >{{ default_image_prompt_style }}</textarea>
                 </div>
             </div>
-
             <div class="form-section">
                 <div class="form-group full-width">
                     <label for="characters-prompt-style">Characters Prompt Style</label>
@@ -143,7 +135,6 @@
                     >{{ default_characters_prompt_style }}</textarea>
                 </div>
             </div>
-
             <div class="form-section">
                 <div class="form-group full-width">
                     <label for="image-preprocessing-prompt">Image prompt preprocessing instructions</label>
@@ -156,7 +147,6 @@
                     >{{ default_image_preprocessing_prompt }}</textarea>
                 </div>
             </div>
-
             <div class="form-section">
                 <div class="form-group full-width">
                     <label for="audio-file-input">Select audio file:</label>
@@ -167,7 +157,6 @@
                     />
                 </div>
             </div>
-
             <button
                     id="upload-btn"
                     type="button"
