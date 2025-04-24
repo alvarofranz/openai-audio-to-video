@@ -285,7 +285,7 @@ def generate_image_route():
       - normal generation (no references),
       - generation with references,
       - editing a single existing scene image,
-      all in one place.
+      - reference_card mode for generating reference images not tied to a scene
     """
     load_dotenv()
     api_key = os.getenv("OPENAI_API_KEY", "")
@@ -297,8 +297,8 @@ def generate_image_route():
     job_id = data.get("job_id")
     scene_index = data.get("scene_index")
     new_prompt = data.get("new_prompt", "")
-    mode = data.get("mode", "normal")  # "normal", "edit_single"
-    reference_list = data.get("references", [])  # array of reference filenames
+    mode = data.get("mode", "normal")  # "normal", "edit_single", "reference_card"
+    reference_list = data.get("references", [])  # array of reference filenames or paths
 
     job_data = CURRENT_JOBS.get(job_id)
     if not job_data:
@@ -307,35 +307,69 @@ def generate_image_route():
     images_folder = os.path.join(job_data["job_folder"], "images")
     os.makedirs(images_folder, exist_ok=True)
 
+    # Distinguish logic by mode
+    if mode == "reference_card":
+        # We'll store as reference-{uniq}.png in the job folder
+        short_uniq = str(uuid.uuid4())[:6]
+        out_filename = f"reference-{short_uniq}.png"
+        out_path = os.path.join(job_data["job_folder"], out_filename)
+
+        # references logic (including default references)
+        references_paths = []
+        for ref_filename in reference_list:
+            if ref_filename.startswith("/static/default-reference-images/"):
+                default_img_abs = os.path.join(
+                    "app", "static", "default-reference-images",
+                    os.path.basename(ref_filename)
+                )
+                if os.path.isfile(default_img_abs):
+                    references_paths.append(default_img_abs)
+            else:
+                full_ref_path = os.path.join(job_data["job_folder"], ref_filename)
+                if os.path.isfile(full_ref_path):
+                    references_paths.append(full_ref_path)
+
+        new_image_path = generate_or_edit_image(
+            client=client,
+            final_prompt=new_prompt,
+            reference_paths=references_paths,
+            width=job_data["images_ai_width"],
+            height=job_data["images_ai_height"],
+            quality=job_data["images_ai_quality"],
+            output_path=out_path
+        )
+        if not new_image_path:
+            return jsonify({"error": "Failed to generate reference image"}), 500
+
+        rel_path = new_image_path.split("app/static/")[-1]
+        return jsonify({"image_url": f"/static/{rel_path}"})
+
+    # Otherwise, "normal" or "edit_single" logic
     # rename old scene image if it exists
     existing_image_path = os.path.join(images_folder, f"scene_{scene_index}.png")
-    if os.path.isfile(existing_image_path):
+    if os.path.isfile(existing_image_path) and mode in ["normal", "edit_single"]:
         renamed_path = os.path.join(
             images_folder,
             f"scene_{scene_index}_unused-{uuid.uuid4().hex[:6]}.png"
         )
         os.rename(existing_image_path, renamed_path)
 
-    # references logic
-    # if mode=="edit_single", references = [the old scene image as single reference]
-    #   but we already renamed the old scene, so we must read that path from the renamed?
-    #   Actually we do that before rename, or do a separate var. We'll do a simpler approach:
-    #   We'll do the rename AFTER we capture its path.
+    # references logic (including default references)
     references_paths = []
-    if mode == "edit_single":
-        # The "old" image was already renamed, so the old path is renamed_path
-        references_paths = [renamed_path] if os.path.isfile(renamed_path) else []
-    else:
-        # normal: references come from job_data["reference_images"] or the list provided
-        # The request sends an array of reference filenames. We'll open them from job_folder
-        for ref_filename in reference_list:
+    for ref_filename in reference_list:
+        if ref_filename.startswith("/static/default-reference-images/"):
+            default_img_abs = os.path.join(
+                "app", "static", "default-reference-images",
+                os.path.basename(ref_filename)
+            )
+            if os.path.isfile(default_img_abs):
+                references_paths.append(default_img_abs)
+        else:
             full_ref_path = os.path.join(job_data["job_folder"], ref_filename)
             if os.path.isfile(full_ref_path):
                 references_paths.append(full_ref_path)
 
-    # Now do the actual image generation/edit
     out_path = os.path.join(images_folder, f"scene_{scene_index}.png")
-
     new_image_path = generate_or_edit_image(
         client=client,
         final_prompt=new_prompt,
@@ -356,6 +390,7 @@ def generate_image_route():
 def upload_local_image():
     job_id = request.form.get("job_id")
     scene_index = request.form.get("scene_index")
+    mode = request.form.get("mode", "scene")  # "scene" or "reference_card"
     if not job_id or scene_index is None:
         return jsonify({"error": "Missing job_id or scene_index"}), 400
 
@@ -367,6 +402,16 @@ def upload_local_image():
     if not image_file:
         return jsonify({"error": "No image file provided"}), 400
 
+    if mode == "reference_card":
+        # No cropping or resizing, store as reference-{uniq}.png
+        short_uniq = str(uuid.uuid4())[:6]
+        ref_filename = f"reference-{short_uniq}.png"
+        ref_path = os.path.join(job_data["job_folder"], ref_filename)
+        image_file.save(ref_path)
+        rel_path = ref_path.split("app/static/")[-1]
+        return jsonify({"image_url": f"/static/{rel_path}"})
+
+    # Otherwise, normal scene logic with cropping
     box_x_str = request.form.get("box_x", "0")
     box_y_str = request.form.get("box_y", "0")
     box_w_str = request.form.get("box_w", "0")
@@ -552,3 +597,48 @@ def adjust_prompts():
                 "prompt": existing_prompt
             })
         return jsonify({"adjusted_prompts": adjusted_prompts})
+
+@main_bp.route("/list-default-references", methods=["GET"])
+def list_default_references():
+    """
+    Lists all images in /app/static/default-reference-images for preloading.
+    """
+    folder = os.path.join("app", "static", "default-reference-images")
+    if not os.path.isdir(folder):
+        return jsonify([])
+    image_files = []
+    for filename in os.listdir(folder):
+        fname_lower = filename.lower()
+        if fname_lower.endswith((".png", ".jpg", ".jpeg", ".gif")):
+            image_files.append(f"/static/default-reference-images/{filename}")
+    return jsonify(image_files)
+
+@main_bp.route("/add-reference", methods=["POST"])
+def add_reference():
+    """
+    Add an existing image (already in the job folder or default references)
+    to the job's reference_images list.
+    """
+    data = request.json
+    job_id = data.get("job_id")
+    ref_path = data.get("ref_path")
+    if not job_id or not ref_path:
+        return jsonify({"error": "Missing job_id or ref_path"}), 400
+
+    job_data = CURRENT_JOBS.get(job_id)
+    if not job_data:
+        return jsonify({"error": "No such job"}), 400
+
+    # If it's a default reference, we just store its full path in job_data (to keep track)
+    # If it's in the job folder, store the basename
+    if ref_path.startswith("/static/default-reference-images/"):
+        # store the entire path as-is
+        if ref_path not in job_data["reference_images"]:
+            job_data["reference_images"].append(ref_path)
+    else:
+        # It's presumably "reference-xxxx.png" in the job folder
+        base_name = os.path.basename(ref_path)
+        if base_name not in job_data["reference_images"]:
+            job_data["reference_images"].append(base_name)
+
+    return jsonify({"status": "ok"})

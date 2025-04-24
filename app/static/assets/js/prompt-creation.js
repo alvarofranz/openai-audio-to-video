@@ -32,7 +32,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         chunkProcessingStatus.style.display = 'none';
 
-        // Enable "Generate" & "Select" for images
+        // Enable "Generate Video" button area
         videoGenerationSection.style.display = 'block';
         enableAllImageButtons();
     });
@@ -59,9 +59,13 @@ function fillPromptTab(sceneCard, finalPrompt) {
         promptTab.value = finalPrompt;
         promptTab.disabled = false;
     }
+    // Enable "Generate" button now that we have a real prompt
+    const regenBtn = sceneCard.querySelector('.regenerate-btn');
+    if (regenBtn) {
+        regenBtn.disabled = false;
+    }
 }
 
-// Once we have all initial prompts, unify them across scenes
 async function adjustAllPrompts() {
     try {
         const resp = await fetch('/adjust-prompts', {

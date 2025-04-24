@@ -1,5 +1,8 @@
 // Manages AI image generation/edit, local image cropping, and references logic
 
+// Make sure we initialize this array so it won't be undefined
+window.referenceImagesLocal = [];  // { filename, url, selected: bool }
+
 document.addEventListener('DOMContentLoaded', function() {
     // We only have a single "Add reference images" button now:
     window.refFileInput = document.getElementById("reference-file-input");
@@ -85,10 +88,69 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
+    // reference image modal (discard / add)
+    const discardBtn = document.getElementById("reference-discard-btn");
+    const addBtn = document.getElementById("reference-add-btn");
+    if (discardBtn) {
+        discardBtn.addEventListener("click", () => {
+            document.getElementById("reference-image-modal").style.display = "none";
+            enableAllImageButtons();
+        });
+    }
+    if (addBtn) {
+        addBtn.addEventListener("click", async () => {
+            const modalImg = document.getElementById("reference-image-modal-img");
+            const finalSrc = modalImg.getAttribute("data-fullsrc");
+            // call /add-reference
+            await addReference(finalSrc);
+            document.getElementById("reference-image-modal").style.display = "none";
+            enableAllImageButtons();
+        });
+    }
 });
 
-// Reference images local array
-window.referenceImagesLocal = [];  // { filename, url, selected: bool }
+async function addReference(refPath) {
+    if (!window.currentJobId) return;
+    const body = { job_id: window.currentJobId, ref_path: refPath };
+    try {
+        await fetch("/add-reference", {
+            method: "POST",
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        // Also add to local array if not present
+        const isDefault = refPath.startsWith("/static/default-reference-images/");
+        if (isDefault) {
+            // push as { filename: refPath, url: refPath, selected:true }
+            let alreadyIn = referenceImagesLocal.find(r => r.filename === refPath);
+            if (!alreadyIn) {
+                referenceImagesLocal.push({
+                    filename: refPath,
+                    url: refPath,
+                    selected: true
+                });
+            }
+        } else {
+            // It's a job folder file
+            const bname = refPath.split("/").pop();
+            let alreadyIn = referenceImagesLocal.find(r => r.filename === bname);
+            if (!alreadyIn) {
+                const finalURL = refPath.startsWith("/static/")
+                    ? refPath
+                    : "/static/" + window.currentJobId + "/" + bname;
+                referenceImagesLocal.push({
+                    filename: bname,
+                    url: finalURL,
+                    selected: true
+                });
+            }
+        }
+        updateReferenceFilesList();
+    } catch (err) {
+        console.warn("Could not add reference to job data:", err);
+    }
+}
 
 async function handleUploadReferenceFiles() {
     // If no files, do nothing
@@ -118,9 +180,10 @@ async function handleUploadReferenceFiles() {
                 continue;
             }
             // store 'selected: true' by default
-            window.referenceImagesLocal.push({
+            const objURL = URL.createObjectURL(f);
+            referenceImagesLocal.push({
                 filename: data.reference_path,
-                url: URL.createObjectURL(f),
+                url: objURL,
                 selected: true
             });
             updateReferenceFilesList();
@@ -138,7 +201,7 @@ function updateReferenceFilesList() {
     const listEl = document.getElementById("reference-files-list");
     if (!listEl) return;
     listEl.innerHTML = "";
-    window.referenceImagesLocal.forEach((ref, index) => {
+    referenceImagesLocal.forEach((ref, index) => {
         const img = document.createElement("img");
         img.src = ref.url;
         img.className = "ref-thumb";
@@ -161,12 +224,11 @@ function updateReferenceFilesList() {
             }
         });
 
-        // [CHANGED] Add delayed preview (300ms)
         let hoverTimer = null;
         img.addEventListener("mouseenter", () => {
             hoverTimer = setTimeout(() => {
                 showReferencePreview(ref.url);
-            }, 300); // CHANGED from 500 to 300
+            }, 300);
         });
         img.addEventListener("mouseleave", () => {
             if (hoverTimer) {
@@ -182,7 +244,6 @@ function updateReferenceFilesList() {
 
 // Show the full-screen overlay in center
 function showReferencePreview(imageUrl) {
-    console.log('triggered');
     const previewEl = document.getElementById("reference-hover-preview");
     const previewImg = document.getElementById("reference-hover-preview-img");
     if (!previewEl || !previewImg) return;
@@ -246,7 +307,7 @@ async function handleGenerateImage(sceneIndex, textArea, imgEl, regenBtn, attemp
     disableAllImageButtons();
 
     // Only include selected references
-    let refs = window.referenceImagesLocal
+    let refs = referenceImagesLocal
         .filter(r => r.selected)
         .map(r => r.filename);
 
@@ -272,20 +333,19 @@ async function handleGenerateImage(sceneIndex, textArea, imgEl, regenBtn, attemp
             console.error("[DEBUG] generate-image error:", dataImg.error);
             if (attempt < 5) {
                 await handleGenerateImage(sceneIndex, textArea, imgEl, regenBtn, attempt + 1);
-                return;
             } else {
                 regenBtn.disabled = false;
                 regenBtn.textContent = 'Generate';
-                window.isGeneratingImage = false;
-                enableAllImageButtons();
-                return;
             }
+            window.isGeneratingImage = false;
+            enableAllImageButtons();
+            return;
         }
         imgEl.src = dataImg.image_url + "?t=" + Date.now();
 
-        if (!window.sceneGenerated[sceneIndex]) {
-            window.sceneGenerated[sceneIndex] = true;
-            window.imagesGenerated++;
+        if (!sceneGenerated[sceneIndex]) {
+            sceneGenerated[sceneIndex] = true;
+            imagesGenerated++;
         }
         regenBtn.textContent = 'Regenerate';
 
@@ -302,8 +362,8 @@ async function handleGenerateImage(sceneIndex, textArea, imgEl, regenBtn, attemp
         // Crop
         await openCropModalFromURL(dataImg.image_url, sceneIndex);
 
-        if (window.imagesGenerated >= window.totalScenes) {
-            window.generateVideoBtn.disabled = false;
+        if (imagesGenerated >= totalScenes) {
+            generateVideoBtn.disabled = false;
         }
     } catch (err) {
         console.error("[DEBUG] fetch error in handleGenerateImage:", err);
@@ -312,10 +372,11 @@ async function handleGenerateImage(sceneIndex, textArea, imgEl, regenBtn, attemp
         } else {
             regenBtn.disabled = false;
             regenBtn.textContent = 'Generate';
-            window.isGeneratingImage = false;
-            enableAllImageButtons();
         }
     }
+
+    window.isGeneratingImage = false;
+    enableAllImageButtons();
 }
 
 function handleEditSceneImage(sceneIndex) {
@@ -343,7 +404,7 @@ function closeEditModal() {
     if (editModal) {
         editModal.style.display = "none";
     }
-    // We'll set currentEditSceneIndex = null only after we finish attempts
+    // We'll set currentEditSceneIndex = null after we finish attempts
 }
 
 async function doEditSceneImage(sceneIndex, attempt) {
@@ -369,7 +430,6 @@ async function doEditSceneImage(sceneIndex, attempt) {
     window.aspectRatio = tw / th;
 
     try {
-        // We'll call the same /generate-image route with mode="edit_single"
         const resp = await fetch('/generate-image', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -386,16 +446,15 @@ async function doEditSceneImage(sceneIndex, attempt) {
             console.error("[DEBUG] edit-image error:", dataImg.error);
             if (attempt < 5) {
                 await doEditSceneImage(sceneIndex, attempt + 1);
-                return;
             } else {
                 if (editBtn) {
                     editBtn.textContent = "Edit";
                     editBtn.disabled = false;
                 }
-                window.isGeneratingImage = false;
-                enableAllImageButtons();
-                return;
             }
+            window.isGeneratingImage = false;
+            enableAllImageButtons();
+            return;
         }
         // Successfully got an image
         if (sceneCard) {
@@ -415,10 +474,8 @@ async function doEditSceneImage(sceneIndex, attempt) {
         }
     } catch (err) {
         console.error("[DEBUG] confirmEditScene error:", err);
-        // If it fails, we can attempt again
         if (attempt < 5) {
             await doEditSceneImage(sceneIndex, attempt + 1);
-            return;
         } else {
             alert("Error editing scene image");
         }
@@ -499,12 +556,12 @@ async function doCropConfirm() {
             const figureEl = sceneCard.querySelector('figure img');
             figureEl.src = data.image_url + '?t=' + Date.now();
         }
-        if (!window.sceneGenerated[sceneIndex]) {
-            window.sceneGenerated[sceneIndex] = true;
-            window.imagesGenerated++;
+        if (!sceneGenerated[sceneIndex]) {
+            sceneGenerated[sceneIndex] = true;
+            imagesGenerated++;
         }
-        if (window.imagesGenerated >= window.totalScenes) {
-            window.generateVideoBtn.disabled = false;
+        if (imagesGenerated >= totalScenes) {
+            generateVideoBtn.disabled = false;
         }
     } catch (err) {
         console.error("[DEBUG] error uploading local image crop:", err);
@@ -514,4 +571,229 @@ async function doCropConfirm() {
     window.isGeneratingImage = false;
     enableAllImageButtons();
     localImageCropModal.style.display = 'none';
+}
+
+// Reference Generator logic
+async function handleGenerateReferenceCardImage(textArea, imgEl, button, editBtn, attempt = 1) {
+    if (attempt === 1) {
+        if (window.isGeneratingImage) return;
+        window.isGeneratingImage = true;
+    }
+
+    button.textContent = `Generating... (# ${attempt})`;
+    disableAllImageButtons();
+
+    let refs = referenceImagesLocal
+        .filter(r => r.selected)
+        .map(r => r.filename);
+
+    try {
+        const resp = await fetch("/generate-image", {
+            method: "POST",
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                job_id: window.currentJobId,
+                scene_index: 0, // dummy
+                new_prompt: textArea.value,
+                mode: "reference_card",
+                references: refs
+            })
+        });
+        const dataImg = await resp.json();
+        if (dataImg.error) {
+            console.error("[DEBUG] reference_card generate error:", dataImg.error);
+            if (attempt < 5) {
+                await handleGenerateReferenceCardImage(textArea, imgEl, button, editBtn, attempt + 1);
+            } else {
+                button.disabled = false;
+                button.textContent = 'Generate';
+            }
+            window.isGeneratingImage = false;
+            enableAllImageButtons();
+            return;
+        }
+        imgEl.src = dataImg.image_url + "?t=" + Date.now();
+
+        // Show modal => discard/add
+        showReferenceImageModal(dataImg.image_url);
+
+        // Show edit button
+        editBtn.style.display = 'inline-block';
+        editBtn.disabled = false;
+
+        button.textContent = 'Generate';
+    } catch (err) {
+        console.error("[DEBUG] error in handleGenerateReferenceCardImage:", err);
+        if (attempt < 5) {
+            await handleGenerateReferenceCardImage(textArea, imgEl, button, editBtn, attempt + 1);
+        } else {
+            button.disabled = false;
+            button.textContent = 'Generate';
+        }
+    }
+
+    window.isGeneratingImage = false;
+    enableAllImageButtons();
+}
+
+function showReferenceImageModal(imageUrl) {
+    const mod = document.getElementById("reference-image-modal");
+    const img = document.getElementById("reference-image-modal-img");
+    if (!mod || !img) return;
+
+    img.src = imageUrl;
+    img.setAttribute("data-fullsrc", imageUrl.replace(/\?t=\d+$/, "")); // store raw
+    mod.style.display = "flex";
+}
+
+function handleSelectLocalReferenceImage(imgEl, editRefBtn) {
+    if (window.isGeneratingImage) return;
+    disableAllImageButtons();
+    window.isGeneratingImage = true;
+
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'image/*';
+
+    fileInput.onchange = async () => {
+        if (!fileInput.files || !fileInput.files.length) {
+            window.isGeneratingImage = false;
+            enableAllImageButtons();
+            return;
+        }
+        const localFile = fileInput.files[0];
+        if (!localFile) {
+            window.isGeneratingImage = false;
+            enableAllImageButtons();
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('job_id', window.currentJobId);
+        formData.append('scene_index', '0'); // dummy
+        formData.append('mode', 'reference_card');
+        formData.append('image_file', localFile);
+
+        try {
+            const resp = await fetch('/upload-local-image', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await resp.json();
+            if (data.error) {
+                alert(data.error);
+                window.isGeneratingImage = false;
+                enableAllImageButtons();
+                return;
+            }
+            imgEl.src = data.image_url + "?t=" + Date.now();
+            showReferenceImageModal(data.image_url);
+
+            // Enable "Edit" after user selects local
+            editRefBtn.style.display = 'inline-block';
+            editRefBtn.disabled = false;
+        } catch (err) {
+            console.error("Error uploading local reference image:", err);
+        }
+
+        window.isGeneratingImage = false;
+        enableAllImageButtons();
+    };
+    fileInput.click();
+}
+
+// Edit existing reference image in place
+async function handleEditReferenceImage(imgEl, textArea, editRefBtn, attempt = 1) {
+    if (attempt === 1) {
+        if (window.isGeneratingImage) return;
+        window.isGeneratingImage = true;
+    }
+    disableAllImageButtons();
+    editRefBtn.textContent = `Editing... (# ${attempt})`;
+
+    const newPrompt = textArea.value || "Refine this reference image";
+
+    try {
+        // We'll do a new /generate-image call with mode=edit_single
+        // BUT we skip cropping. This is a reference card, so no crop modal.
+        const resp = await fetch("/generate-image", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                job_id: window.currentJobId,
+                scene_index: 0,
+                new_prompt: newPrompt,
+                mode: "edit_single",
+                references: []
+            })
+        });
+        const dataImg = await resp.json();
+        if (dataImg.error) {
+            console.error("[DEBUG] edit-reference_image error:", dataImg.error);
+            if (attempt < 5) {
+                await handleEditReferenceImage(imgEl, textArea, editRefBtn, attempt + 1);
+            } else {
+                editRefBtn.textContent = "Edit";
+            }
+            window.isGeneratingImage = false;
+            enableAllImageButtons();
+            return;
+        }
+        // got new image
+        imgEl.src = dataImg.image_url + "?t=" + Date.now();
+        showReferenceImageModal(dataImg.image_url);
+
+        editRefBtn.textContent = "Edit";
+    } catch (err) {
+        console.error("[DEBUG] handleEditReferenceImage error:", err);
+        if (attempt < 5) {
+            await handleEditReferenceImage(imgEl, textArea, editRefBtn, attempt + 1);
+        } else {
+            alert("Error editing reference image");
+            editRefBtn.textContent = "Edit";
+        }
+    }
+
+    window.isGeneratingImage = false;
+    enableAllImageButtons();
+}
+
+/* Utility to disable all image-related buttons across all cards */
+function disableAllImageButtons() {
+    const allRegen = document.querySelectorAll('.regenerate-btn');
+    const allSelect = document.querySelectorAll('.select-local-btn');
+    const allEdits = document.querySelectorAll('.edit-btn');
+    allRegen.forEach(btn => btn.disabled = true);
+    allSelect.forEach(btn => btn.disabled = true);
+    allEdits.forEach(btn => btn.disabled = true);
+}
+
+/* Utility to enable all image-related buttons across all cards that
+   are logically available (i.e. hidden ones remain hidden). */
+function enableAllImageButtons() {
+    // We'll re-enable if the element is visible
+    const allRegen = document.querySelectorAll('.regenerate-btn');
+    const allSelect = document.querySelectorAll('.select-local-btn');
+    const allEdits = document.querySelectorAll('.edit-btn');
+
+    allRegen.forEach(btn => {
+        if (btn.offsetParent !== null) btn.disabled = false;
+    });
+    allSelect.forEach(btn => {
+        if (btn.offsetParent !== null) btn.disabled = false;
+    });
+    allEdits.forEach(btn => {
+        // Only enable if displayed
+        if (btn.style.display !== 'none' && btn.offsetParent !== null) {
+            btn.disabled = false;
+        }
+    });
+}
+
+function updateCropRect() {
+    if (!cropRect) return;
+    cropRect.style.left = window.rectX + 'px';
+    cropRect.style.top = window.rectY + 'px';
+    cropRect.style.width = window.rectW + 'px';
+    cropRect.style.height = window.rectH + 'px';
 }

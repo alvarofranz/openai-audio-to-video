@@ -1,4 +1,4 @@
-// audio-upload.js
+// storyboard-setup.js
 // Manages the initial audio upload, transcription, and scene card creation.
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -107,6 +107,12 @@ async function extractDetails(jobId) {
         sceneGenerated = new Array(totalScenes).fill(false);
         scenesContainer.innerHTML = '';
 
+        currentJobId = jobId;
+
+        // First: create the "Reference Generator Card"
+        createReferenceGeneratorCard();
+
+        // Then create all scene cards
         for (let i = 0; i < totalScenes; i++) {
             const { index } = data.chunks[i];
             const sceneCard = createSceneCard(index);
@@ -119,12 +125,33 @@ async function extractDetails(jobId) {
             refBar.style.display = "flex";
         }
 
+        // Preload default references
+        await preloadDefaultReferences();
+
         videoGenerationSection.style.display = 'none';
-        currentJobId = jobId;
     } catch (err) {
         console.error("Error extracting details:", err);
         alert("Could not extract details");
         resetUI();
+    }
+}
+
+async function preloadDefaultReferences() {
+    try {
+        const resp = await fetch('/list-default-references');
+        const arr = await resp.json();
+        // Make sure referenceImagesLocal is defined:
+        if (!window.referenceImagesLocal) window.referenceImagesLocal = [];
+        arr.forEach(url => {
+            window.referenceImagesLocal.push({
+                filename: url, // storing the absolute path for defaults
+                url,
+                selected: true
+            });
+        });
+        updateReferenceFilesList();
+    } catch (e) {
+        console.warn("Could not preload default references:", e);
     }
 }
 
@@ -138,7 +165,8 @@ function createSceneCard(sceneIndex) {
 
     const tabBtnPrompt = document.createElement('div');
     tabBtnPrompt.className = 'tab-button active';
-    tabBtnPrompt.textContent = 'Image Prompt';
+    // We label it "Scene X prompt"
+    tabBtnPrompt.textContent = `Scene ${sceneIndex + 1} prompt`;
 
     const tabBtnText = document.createElement('div');
     tabBtnText.className = 'tab-button';
@@ -175,11 +203,10 @@ function createSceneCard(sceneIndex) {
     regenBtn.classList.add('regenerate-btn');
     regenBtn.disabled = true;
 
-    // "Select Image" button (top right)
+    // "Select Image" button
     const selectLocalBtn = document.createElement('button');
     selectLocalBtn.textContent = 'Select Image';
     selectLocalBtn.classList.add('select-local-btn');
-    selectLocalBtn.disabled = true;
 
     // "Edit" button
     const editBtn = document.createElement('button');
@@ -253,6 +280,117 @@ function fillSceneText(sceneIndex, sceneTextBlock) {
     sceneTextBlock.textContent = `"${displayText}"\nDuration: ${rangeStr}`;
 }
 
+// Additional: Reference Generator Card
+function createReferenceGeneratorCard() {
+    const refCard = document.createElement('div');
+    refCard.className = 'scene-card';
+    refCard.id = 'reference-generator-card';
+
+    const tabsContainer = document.createElement('div');
+    tabsContainer.className = 'tabs-container';
+
+    const tabBtnPrompt = document.createElement('div');
+    tabBtnPrompt.className = 'tab-button active';
+    // Label it "Reference generation prompt"
+    tabBtnPrompt.textContent = 'Reference generation prompt';
+
+    const tabBtnInfo = document.createElement('div');
+    tabBtnInfo.className = 'tab-button';
+    tabBtnInfo.textContent = 'How to use';
+
+    tabsContainer.appendChild(tabBtnPrompt);
+    tabsContainer.appendChild(tabBtnInfo);
+
+    const tabPromptContent = document.createElement('div');
+    tabPromptContent.className = 'tab-content tab-content-prompt active';
+
+    const textArea = document.createElement('textarea');
+    textArea.value = "";
+    textArea.disabled = false;
+    textArea.addEventListener('focus', adjustTextareaHeight);
+    textArea.addEventListener('input', adjustTextareaHeight);
+    textArea.addEventListener('blur', resetTextareaHeight);
+    tabPromptContent.appendChild(textArea);
+
+    const tabInfoContent = document.createElement('div');
+    tabInfoContent.className = 'tab-content tab-content-text';
+    tabInfoContent.textContent = "Use this card to quickly generate or import images to serve as references. Generated images won't be cropped and will be stored as reference files. You can also 'Edit' them to refine with AI.";
+
+    const figureEl = document.createElement('figure');
+    const imgEl = document.createElement('img');
+    imgEl.src = '/static/assets/img/placeholder.png';
+
+    // "Generate" button
+    const genRefBtn = document.createElement('button');
+    genRefBtn.textContent = 'Generate';
+    genRefBtn.classList.add('regenerate-btn');
+    genRefBtn.disabled = false; // can always attempt generation
+
+    // "Select Image" button
+    const selectLocalBtn = document.createElement('button');
+    selectLocalBtn.textContent = 'Select Image';
+    selectLocalBtn.classList.add('select-local-btn');
+
+    // "Edit" button for references
+    const editRefBtn = document.createElement('button');
+    editRefBtn.textContent = 'Edit';
+    editRefBtn.classList.add('edit-btn');
+    editRefBtn.disabled = true;
+    editRefBtn.style.display = 'none';
+
+    // Bottom buttons container
+    const bottomBtnsDiv = document.createElement('div');
+    bottomBtnsDiv.classList.add('bottom-buttons');
+    bottomBtnsDiv.appendChild(genRefBtn);
+    bottomBtnsDiv.appendChild(editRefBtn);
+
+    figureEl.appendChild(imgEl);
+    figureEl.appendChild(selectLocalBtn);
+    figureEl.appendChild(bottomBtnsDiv);
+
+    const cardContent = document.createElement('div');
+    cardContent.className = 'scene-card-content';
+
+    const tabContentsContainer = document.createElement('div');
+    tabContentsContainer.className = 'tab-contents-wrapper';
+    tabContentsContainer.appendChild(tabsContainer);
+    tabContentsContainer.appendChild(tabPromptContent);
+    tabContentsContainer.appendChild(tabInfoContent);
+
+    cardContent.appendChild(tabContentsContainer);
+    cardContent.appendChild(figureEl);
+    refCard.appendChild(cardContent);
+
+    // Tab logic
+    tabBtnPrompt.addEventListener('click', () => {
+        tabBtnPrompt.classList.add('active');
+        tabBtnInfo.classList.remove('active');
+        tabPromptContent.classList.add('active');
+        tabInfoContent.classList.remove('active');
+    });
+    tabBtnInfo.addEventListener('click', () => {
+        tabBtnPrompt.classList.remove('active');
+        tabBtnInfo.classList.add('active');
+        tabPromptContent.classList.remove('active');
+        tabInfoContent.classList.add('active');
+    });
+
+    scenesContainer.appendChild(refCard);
+
+    // Add event handlers
+    genRefBtn.addEventListener('click', () => {
+        handleGenerateReferenceCardImage(textArea, imgEl, genRefBtn, editRefBtn);
+    });
+    selectLocalBtn.addEventListener('click', () => {
+        handleSelectLocalReferenceImage(imgEl, editRefBtn);
+    });
+
+    // "Edit" references
+    editRefBtn.addEventListener('click', () => {
+        handleEditReferenceImage(imgEl, textArea, editRefBtn);
+    });
+}
+
 // Textarea auto-height
 function adjustTextareaHeight(e) {
     const area = e.target;
@@ -260,5 +398,5 @@ function adjustTextareaHeight(e) {
     area.style.height = area.scrollHeight + 'px';
 }
 function resetTextareaHeight(e) {
-    e.target.style.height = '200px';
+    e.target.style.height = '160px';
 }

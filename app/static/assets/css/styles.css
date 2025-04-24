@@ -8,12 +8,8 @@
     --color-purple: #6561ac;
     --color-green: #0eb24e;
     --color-red: #cd004b;
-
-    --bg-color: var(--color-black);
     --text-color: #e0e0e0;
-    --accent-color: var(--color-orange);
-    --card-bg: var(--color-gray);
-
+    --accent-color: #dc5005;
     --header-bg: #151515;
     --border-color: #444;
     --hover-accent: #ff9145;
@@ -23,7 +19,7 @@
 
 body {
     margin: 0;
-    background: var(--bg-color);
+    background: var(--color-black);
     color: var(--text-color);
     font-family: 'Roboto', sans-serif;
     line-height: 1.5;
@@ -45,8 +41,9 @@ main {
     padding: 20px;
 }
 
+/* ------------ Settings Container & Forms ------------ */
 .settings-container {
-    background: var(--card-bg);
+    background: var(--color-gray);
     padding: 20px;
     border-radius: 8px;
     margin-bottom: 20px;
@@ -141,12 +138,13 @@ audio {
     width: 100%;
 }
 
+/* ------------ Story / Scenes ------------ */
 #story-ingredients-container {
     margin-bottom: 20px;
 }
 
 .scene-card {
-    background: var(--card-bg);
+    background: var(--color-gray);
     padding: 10px;
     margin-bottom: 15px;
     border-radius: 8px;
@@ -185,9 +183,7 @@ figure img {
     object-fit: cover;
 }
 
-/* Removed the figcaption block; now we position buttons ourselves */
-
-/* Top-right button */
+/* Buttons inside figure */
 .select-local-btn {
     position: absolute;
     top: 10px;
@@ -195,7 +191,6 @@ figure img {
     margin-left: 0;
 }
 
-/* Bottom-right container for "Generate" and "Edit" */
 .bottom-buttons {
     position: absolute;
     bottom: 10px;
@@ -205,15 +200,8 @@ figure img {
     gap: 5px;
 }
 
-.tab-container {
-    display: flex;
-    margin: 0;
-    border: 1px solid var(--border-color);
-    border-bottom: none;
-    border-radius: 6px 6px 0 0;
-    overflow: hidden;
-}
-
+/* ------------ Tabs ------------ */
+.tab-container,
 .tabs-container {
     display: flex;
     margin: 0;
@@ -255,11 +243,13 @@ figure img {
 .tab-content-prompt textarea {
     font-size: 1rem;
     line-height: 1.4;
-    height: 200px;
+    height: 160px;
+    min-height: 160px;
     transition: height 0.3s ease;
     width: 100%;
     box-sizing: border-box;
-    border-radius: 0;
+    border-bottom-left-radius: 6px;
+    border-bottom-right-radius: 6px;
     border: none;
     background: var(--dark-gray);
     color: var(--text-color);
@@ -280,6 +270,7 @@ figure img {
     border-radius: 0;
 }
 
+/* ------------ Final video ------------ */
 #final-video-section {
     text-align: center;
 }
@@ -307,7 +298,7 @@ figure img {
     border-radius: 4px;
 }
 
-/* Simple local image crop overlay */
+/* ------------ Cropping Overlay ------------ */
 .simple-crop-overlay {
     position: fixed;
     top: 0;
@@ -353,16 +344,15 @@ figure img {
     box-sizing: border-box;
 }
 
-/* "cancel" / "confirm" row */
 .btn-row {
     display: flex;
     justify-content: flex-end;
     gap: 10px;
 }
 
-/* Reference bar */
+/* ------------ Reference Bar ------------ */
 #reference-bar {
-    display: none; /* Hidden until story is ready */
+    display: none;
     position: fixed;
     bottom: 0;
     left: 0;
@@ -391,7 +381,14 @@ figure img {
     cursor: pointer;
 }
 
-/* Edit modal */
+.ref-thumb.selected {
+    border: 2px solid var(--color-green);
+}
+.ref-thumb.unselected {
+    border: 2px solid var(--color-red);
+}
+
+/* ------------ Edit modal ------------ */
 #edit-image-modal {
     position: fixed;
     top: 0;
@@ -432,15 +429,7 @@ figure img {
     gap: 10px;
 }
 
-/* Reference images selection states */
-.ref-thumb.selected {
-    border: 2px solid var(--color-green);
-}
-.ref-thumb.unselected {
-    border: 2px solid var(--color-red);
-}
-
-/* Hover preview overlay (modal) in center */
+/* ------------ Hover Preview Overlay ------------ */
 #reference-hover-preview {
     position: fixed;
     top: 0;
@@ -451,17 +440,56 @@ figure img {
     display: none;
     align-items: center;
     justify-content: center;
+    z-index: 998;
 }
 
 #reference-hover-preview-img {
     position: absolute;
     top: 50%;
     left: 50%;
-    transform: translateX(-50%) translateY(-50%);
+    transform: translate(-50%, -50%);
     width: 500px;
     height: auto;
     max-width: 80vw;
     max-height: 60vh;
     box-shadow: 0 0 20px rgba(255,255,255,0.6);
     border-radius: 4px;
+}
+
+/* ------------ Reference Image Decision Modal ------------ */
+#reference-image-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.7);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1001;
+}
+
+#reference-image-modal-content {
+    background: #444;
+    padding: 20px;
+    border-radius: 6px;
+    width: 80vw;
+    max-width: 600px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+#reference-image-modal-img {
+    max-width: 100%;
+    border-radius: 4px;
+    margin-bottom: 10px;
+}
+
+.reference-image-modal-buttons {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    width: 100%;
 }

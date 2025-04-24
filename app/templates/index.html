@@ -282,8 +282,20 @@
     <img id="reference-hover-preview-img" src="" alt="Reference Preview" />
 </div>
 
+<!-- Reference Image Decision Modal -->
+<div id="reference-image-modal" style="display:none;">
+    <div id="reference-image-modal-content">
+        <h3>Reference Image Generated</h3>
+        <img id="reference-image-modal-img" src="" alt="Reference Preview" />
+        <div class="reference-image-modal-buttons">
+            <button id="reference-discard-btn" class="red-button">Discard</button>
+            <button id="reference-add-btn">Add to references</button>
+        </div>
+    </div>
+</div>
+
 <script src="{{ url_for('static', filename='assets/js/general.js') }}"></script>
-<script src="{{ url_for('static', filename='assets/js/audio-upload.js') }}"></script>
+<script src="{{ url_for('static', filename='assets/js/storyboard-setup.js') }}"></script>
 <script src="{{ url_for('static', filename='assets/js/prompt-creation.js') }}"></script>
 <script src="{{ url_for('static', filename='assets/js/image-handling.js') }}"></script>
 <script src="{{ url_for('static', filename='assets/js/video-creation.js') }}"></script>
