@@ -1,8 +1,9 @@
 import requests
-from openai import OpenAI
-from moviepy import *
-from .global_utils import log, pretty_print_api_response
+import base64
 import json
+
+from openai import OpenAI
+from .global_utils import log, pretty_print_api_response
 
 def generate_title_and_description(client: OpenAI, full_text: str, text_model: str) -> dict:
     """
@@ -133,51 +134,59 @@ def preprocess_image_prompt(
         fallback = f"{style_prefix} {scene_text}"
         return shorten_prompt_if_needed(fallback)
 
-def generate_image_for_scene(
+def generate_or_edit_image(
     client: OpenAI,
-    story_text: str,
-    scene_text: str,
-    index: int,
-    output_folder: str,
-    story_ingredients: str,
-    image_prompt_style: str,
-    image_preprocessing_prompt: str,
-    text_model: str,
+    final_prompt: str,
+    reference_paths: list,
     width: int,
     height: int,
-    characters_prompt_style: str
+    quality: str,
+    output_path: str
 ):
     """
-    Creates a final prompt for the scene, then calls DALL-E.
+    If reference_paths is empty => generate
+    If reference_paths is not empty => edit
+    Using model="gpt-image-1", we get a Python object with .data[0].b64_json
+    (not JSON with "data" array). We'll decode & save to output_path.
     """
-    final_prompt = preprocess_image_prompt(
-        client=client,
-        full_story=story_text,
-        story_ingredients=story_ingredients,
-        style_prefix=image_prompt_style,
-        scene_text=scene_text,
-        text_model=text_model,
-        image_preprocessing_prompt=image_preprocessing_prompt,
-        characters_prompt_style=characters_prompt_style
-    )
-    log(f"Generating image for scene #{index}:\n---\n{final_prompt}\n---", "prompt_utils")
+    prompt_for_api = shorten_prompt_if_needed(final_prompt, 4000)
+    log(f"Image generation/edit with prompt:\n{prompt_for_api}", "prompt_utils")
+
     try:
-        response = client.images.generate(
-            model="dall-e-3",
-            prompt=shorten_prompt_if_needed(final_prompt, 4000),
-            n=1,
-            quality="hd",
-            size=f"{width}x{height}"
-        )
-        pretty_print_api_response(response)
-        image_url = response.data[0].url
-        img_data = requests.get(image_url).content
-        image_path = f"{output_folder}/scene_{index}.png"
-        with open(image_path, "wb") as file:
-            file.write(img_data)
-        return image_path
+        if not reference_paths:
+            # Normal generation
+            response = client.images.generate(
+                model="gpt-image-1",
+                prompt=prompt_for_api,
+                size=f"{width}x{height}",
+                quality=quality
+            )
+            pretty_print_api_response(response)
+            image_base64 = response.data[0].b64_json
+        else:
+            # Edit with references
+            image_files = []
+            for ref_path in reference_paths:
+                image_files.append(open(ref_path, "rb"))
+
+            response = client.images.edit(
+                model="gpt-image-1",
+                image=image_files,
+                prompt=prompt_for_api,
+                size=f"{width}x{height}",
+                quality=quality
+            )
+            pretty_print_api_response(response)
+            image_base64 = response.data[0].b64_json
+            for f in image_files:
+                f.close()
+
+        image_bytes = base64.b64decode(image_base64)
+        with open(output_path, "wb") as f:
+            f.write(image_bytes)
+        return output_path
     except Exception as e:
-        log(f"Error generating image for scene #{index}: {e}", "prompt_utils")
+        log(f"Error generating/editing image: {e}", "prompt_utils")
         return None
 
 def image_prompts_adjustment(
@@ -188,12 +197,6 @@ def image_prompts_adjustment(
     existing_prompts: list,
     text_model: str
 ):
-    """
-    Unify prompts across scenes to ensure no contradictions, consistent characters, etc.
-    Return JSON with "adjusted_scene_prompts".
-    """
-    from .global_utils import pretty_print_api_response, log
-
     scene_info = []
     for i, prompt in enumerate(existing_prompts):
         chunk_text = scene_chunks[i]["text"]
@@ -247,7 +250,7 @@ def image_prompts_adjustment(
         raw_output = response.choices[0].message.content.strip()
         pretty_print_api_response(response)
 
-        # Attempt to parse JSON
+        # Attempt JSON parse
         try:
             return json.loads(raw_output)
         except json.JSONDecodeError as je:

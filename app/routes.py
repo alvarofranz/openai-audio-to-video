@@ -1,5 +1,6 @@
 import os
 import uuid
+import base64
 
 from flask import Blueprint, render_template, request, jsonify
 from dotenv import load_dotenv
@@ -9,12 +10,14 @@ from app.utils.global_utils import log, pretty_print_api_response
 from app.utils.audio_utils import transcribe_audio, chunk_transcript
 from app.utils.video_utils import create_video_from_scenes
 from app.utils.prompt_utils import (
-    generate_image_for_scene,
     preprocess_image_prompt,
     preprocess_story_data,
     generate_title_and_description,
-    image_prompts_adjustment
+    image_prompts_adjustment,
+    generate_or_edit_image
 )
+from app.utils.image_utils import process_local_image
+
 from defaults import (
     WORDS_PER_SCENE,
     TEXT_MODEL,
@@ -25,9 +28,9 @@ from defaults import (
     IMAGE_PREPROCESSING_PROMPT,
     FADE_IN,
     FADE_OUT,
-    CROSSFADE_DUR
+    CROSSFADE_DUR,
+    IMAGES_AI_QUALITY
 )
-from app.utils.image_utils import process_local_image
 
 main_bp = Blueprint("main", __name__)
 CURRENT_JOBS = {}
@@ -45,7 +48,8 @@ def index():
         default_image_preprocessing_prompt=IMAGE_PREPROCESSING_PROMPT,
         default_fade_in=FADE_IN,
         default_fade_out=FADE_OUT,
-        default_crossfade_dur=CROSSFADE_DUR
+        default_crossfade_dur=CROSSFADE_DUR,
+        default_image_quality=IMAGES_AI_QUALITY,
     )
 
 @main_bp.route("/upload-audio", methods=["POST"])
@@ -76,6 +80,7 @@ def upload_audio():
     fade_in_str = request.form.get("fade_in", f"{FADE_IN}").strip()
     fade_out_str = request.form.get("fade_out", f"{FADE_OUT}").strip()
     crossfade_str = request.form.get("crossfade_dur", f"{CROSSFADE_DUR}").strip()
+    images_ai_quality = request.form.get("images_ai_quality", IMAGES_AI_QUALITY).strip()
 
     try:
         wps = int(words_per_scene_str)
@@ -131,16 +136,16 @@ def upload_audio():
     full_text = whisper_data.text.strip()
     log(f"Full Text for {job_id}: {full_text}", "routes")
 
-    # Store partial job data, including the entire whisper_data
+    # Store partial job data
     CURRENT_JOBS[job_id] = {
         "audio_path": audio_path,
-        "whisper_data": whisper_data,  # store the entire object (so we can chunk later!)
+        "whisper_data": whisper_data,
         "full_text": full_text,
-
         "words_per_scene": wps,
         "text_model": text_model,
         "images_ai_width": images_ai_w,
         "images_ai_height": images_ai_h,
+        "images_ai_quality": images_ai_quality,
         "video_width": video_width,
         "video_height": video_height,
         "image_prompt_style": image_prompt_style,
@@ -149,17 +154,16 @@ def upload_audio():
         "fade_in": fade_in_val,
         "fade_out": fade_out_val,
         "crossfade_dur": crossfade_val,
-
         "title": None,
         "description": None,
         "story_ingredients": None,
         "chunks": None,
         "images": None,
         "prompts": None,
-        "job_folder": job_folder
+        "job_folder": job_folder,
+        "reference_images": []
     }
 
-    # Return job_id + the transcribed text
     return jsonify({
         "job_id": job_id,
         "full_text": full_text
@@ -170,7 +174,7 @@ def extract_details():
     """
     1) Takes job_id, loads the stored whisper_data,
     2) Generates title, description, story ingredients,
-    3) Chunks the transcript from the stored segments,
+    3) Chunks the transcript,
     4) Allocates images/prompts arrays,
     5) Returns them.
     """
@@ -206,7 +210,7 @@ def extract_details():
     except Exception as e:
         return jsonify({"error": f"Failed to get story ingredients: {str(e)}"}), 500
 
-    # 3) chunk using the stored whisper_data
+    # 3) chunk
     try:
         chunks = chunk_transcript(job_data["whisper_data"], wps)
     except Exception as e:
@@ -276,6 +280,13 @@ def preprocess_chunk():
 
 @main_bp.route("/generate-image", methods=["POST"])
 def generate_image_route():
+    """
+    This route can handle:
+      - normal generation (no references),
+      - generation with references,
+      - editing a single existing scene image,
+      all in one place.
+    """
     load_dotenv()
     api_key = os.getenv("OPENAI_API_KEY", "")
     if not api_key:
@@ -286,6 +297,8 @@ def generate_image_route():
     job_id = data.get("job_id")
     scene_index = data.get("scene_index")
     new_prompt = data.get("new_prompt", "")
+    mode = data.get("mode", "normal")  # "normal", "edit_single"
+    reference_list = data.get("references", [])  # array of reference filenames
 
     job_data = CURRENT_JOBS.get(job_id)
     if not job_data:
@@ -294,6 +307,7 @@ def generate_image_route():
     images_folder = os.path.join(job_data["job_folder"], "images")
     os.makedirs(images_folder, exist_ok=True)
 
+    # rename old scene image if it exists
     existing_image_path = os.path.join(images_folder, f"scene_{scene_index}.png")
     if os.path.isfile(existing_image_path):
         renamed_path = os.path.join(
@@ -302,27 +316,40 @@ def generate_image_route():
         )
         os.rename(existing_image_path, renamed_path)
 
-    job_data["prompts"][scene_index] = new_prompt
+    # references logic
+    # if mode=="edit_single", references = [the old scene image as single reference]
+    #   but we already renamed the old scene, so we must read that path from the renamed?
+    #   Actually we do that before rename, or do a separate var. We'll do a simpler approach:
+    #   We'll do the rename AFTER we capture its path.
+    references_paths = []
+    if mode == "edit_single":
+        # The "old" image was already renamed, so the old path is renamed_path
+        references_paths = [renamed_path] if os.path.isfile(renamed_path) else []
+    else:
+        # normal: references come from job_data["reference_images"] or the list provided
+        # The request sends an array of reference filenames. We'll open them from job_folder
+        for ref_filename in reference_list:
+            full_ref_path = os.path.join(job_data["job_folder"], ref_filename)
+            if os.path.isfile(full_ref_path):
+                references_paths.append(full_ref_path)
 
-    image_path = generate_image_for_scene(
+    # Now do the actual image generation/edit
+    out_path = os.path.join(images_folder, f"scene_{scene_index}.png")
+
+    new_image_path = generate_or_edit_image(
         client=client,
-        story_text=job_data["full_text"],
-        scene_text=new_prompt,
-        index=scene_index,
-        output_folder=images_folder,
-        story_ingredients=job_data["story_ingredients"],
-        image_prompt_style=job_data["image_prompt_style"],
-        image_preprocessing_prompt=job_data["image_preprocessing_prompt"],
-        text_model=job_data["text_model"],
+        final_prompt=new_prompt,
+        reference_paths=references_paths,
         width=job_data["images_ai_width"],
         height=job_data["images_ai_height"],
-        characters_prompt_style=job_data["characters_prompt_style"]
+        quality=job_data["images_ai_quality"],
+        output_path=out_path
     )
-    if not image_path:
+    if not new_image_path:
         return jsonify({"error": "Failed to generate image"}), 500
 
-    job_data["images"][scene_index] = image_path
-    rel_path = image_path.split("app/static/")[-1]
+    job_data["images"][scene_index] = new_image_path
+    rel_path = new_image_path.split("app/static/")[-1]
     return jsonify({"image_url": f"/static/{rel_path}"})
 
 @main_bp.route("/upload-local-image", methods=["POST"])
@@ -388,6 +415,35 @@ def upload_local_image():
     job_data["images"][int(scene_index)] = output_path
     rel_path = output_path.split("app/static/")[-1]
     return jsonify({"image_url": f"/static/{rel_path}"})
+
+@main_bp.route("/upload-reference-image", methods=["POST"])
+def upload_reference_image():
+    """
+    Allows uploading reference images (files) for the job.
+    We store them as reference-<uuid>.png, add to job_data["reference_images"].
+    Returns the relative path.
+    """
+    job_id = request.form.get("job_id", "")
+    if not job_id:
+        return jsonify({"error": "No job_id provided"}), 400
+
+    job_data = CURRENT_JOBS.get(job_id)
+    if not job_data:
+        return jsonify({"error": "No such job"}), 400
+
+    ref_file = request.files.get("reference_file")
+    if not ref_file:
+        return jsonify({"error": "No reference file"}), 400
+
+    short_uniq = str(uuid.uuid4())[:6]
+    ref_filename = f"reference-{short_uniq}.png"
+    job_folder = job_data["job_folder"]
+    ref_path = os.path.join(job_folder, ref_filename)
+
+    ref_file.save(ref_path)
+    job_data["reference_images"].append(ref_filename)
+
+    return jsonify({"reference_path": ref_filename})
 
 @main_bp.route("/create-video", methods=["POST"])
 def create_video_endpoint():

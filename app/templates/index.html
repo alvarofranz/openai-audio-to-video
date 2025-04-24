@@ -48,6 +48,16 @@
                             class="medium-input"
                     >
                 </div>
+
+                <div class="form-group">
+                    <label for="images-ai-quality">Images Quality:</label>
+                    <select id="images-ai-quality">
+                        <option value="{{ default_image_quality }}" selected>
+                            {{ default_image_quality }}
+                        </option>
+                        <option value="low">Low</option>
+                    </select>
+                </div>
             </div>
 
             <!-- Separate size selectors: AI image size & final video size -->
@@ -55,7 +65,6 @@
                 <div class="form-group">
                     <label for="ai-size-select">AI Image Size:</label>
                     <select id="ai-size-select">
-                        <!-- For now, just the default as a single option -->
                         <option value="{{ default_images_ai_requested_size }}" selected>
                             {{ default_images_ai_requested_size }}
                         </option>
@@ -65,7 +74,6 @@
                 <div class="form-group">
                     <label for="video-size">Final Video Size:</label>
                     <select id="video-size">
-                        <!-- Default 1920x1080 -->
                         <option value="{{ default_video_size }}" selected>
                             {{ default_video_size }}
                         </option>
@@ -171,7 +179,6 @@
         </form>
     </div>
 
-    <!-- Step 1.5: Show "Uploading audio..." with a Cancel button during POST -->
     <div id="uploading-section" class="uploading-section" style="display:none;">
         <p id="uploading-feedback" class="loading-feedback">
             Uploading audio...
@@ -179,23 +186,18 @@
         <button id="upload-cancel-btn" class="red-button">Cancel</button>
     </div>
 
-    <!-- Step 2: After audio is processed -->
     <div id="audio-processing-section" style="display:none;">
 
-        <!-- Show the raw transcription text right after we get it -->
         <p id="story-transcription" style="display:none; white-space:pre-wrap;"></p>
 
-        <!-- A short "Extracting details..." or "Converting audio..." placeholder if needed -->
         <div id="whisper-loading" class="loading-feedback" style="display:none;">
             Extracting details...
         </div>
 
         <audio controls id="uploaded-audio" class="uploaded-audio" style="margin-top:10px;"></audio>
 
-        <!-- Show the final story description -->
         <p id="story-description" class="story-description" style="display:none;"></p>
 
-        <!-- Editable story ingredients + button to generate image prompts -->
         <div id="story-ingredients-container" style="display:none;">
             <label>Story Ingredients:</label>
             <textarea
@@ -217,10 +219,8 @@
         Processing chunks...
     </div>
 
-    <!-- Scenes container (cards for each chunk) -->
     <div id="scenes-container"></div>
 
-    <!-- Generate video button & indefinite loading -->
     <div id="video-generation-section" style="display:none;">
         <button id="generate-video-btn" disabled>Generate Video</button>
         <div id="video-progress" class="loading-feedback" style="display:none;">
@@ -228,7 +228,6 @@
         </div>
     </div>
 
-    <!-- Final video embed -->
     <div id="final-video-section" style="display:none; text-align:center;">
         <video controls id="final-video">
             <source id="final-video-source" src="" type="video/mp4">
@@ -252,7 +251,26 @@
     </div>
 </div>
 
-<!-- Load JS -->
+<!-- Edit Image Modal -->
+<div id="edit-image-modal">
+    <div id="edit-image-modal-content">
+        <h3>Edit Image Prompt</h3>
+        <textarea id="edit-modal-textarea"></textarea>
+        <div class="edit-modal-buttons">
+            <button id="edit-modal-cancel" class="red-button">Cancel</button>
+            <button id="edit-modal-confirm">Request Edit</button>
+        </div>
+    </div>
+</div>
+
+<!-- Fixed bottom bar for reference images -->
+<div id="reference-bar">
+    <h3>Reference Images</h3>
+    <input type="file" id="reference-file-input" accept="image/*" multiple />
+    <button id="reference-upload-btn">Add</button>
+    <div id="reference-files-list"></div>
+</div>
+
 <script src="{{ url_for('static', filename='assets/js/general.js') }}"></script>
 <script src="{{ url_for('static', filename='assets/js/audio-upload.js') }}"></script>
 <script src="{{ url_for('static', filename='assets/js/prompt-creation.js') }}"></script>
