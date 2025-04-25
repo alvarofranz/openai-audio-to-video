@@ -195,7 +195,7 @@ function createSceneCard(sceneIndex) {
 
     const figureEl = document.createElement('figure');
     const imgEl = document.createElement('img');
-    imgEl.src = '/static/assets/img/placeholder.png';
+    imgEl.src = '/static/assets/img/placeholder-scene.png';
 
     // "Generate" button
     const regenBtn = document.createElement('button');
@@ -305,7 +305,7 @@ function createReferenceGeneratorCard() {
     tabPromptContent.className = 'tab-content tab-content-prompt active';
 
     const textArea = document.createElement('textarea');
-    textArea.value = "";
+    textArea.value = "Create a reference grid to be used as the visual style guide (no text) for the following characters: ...";
     textArea.disabled = false;
     textArea.addEventListener('focus', adjustTextareaHeight);
     textArea.addEventListener('input', adjustTextareaHeight);
@@ -318,7 +318,7 @@ function createReferenceGeneratorCard() {
 
     const figureEl = document.createElement('figure');
     const imgEl = document.createElement('img');
-    imgEl.src = '/static/assets/img/placeholder.png';
+    imgEl.src = '/static/assets/img/placeholder-reference.png';
 
     // "Generate" button
     const genRefBtn = document.createElement('button');

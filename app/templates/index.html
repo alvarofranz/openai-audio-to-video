@@ -48,7 +48,7 @@
                 </div>
             </div>
 
-            <!-- Separate size selectors with all requested options -->
+            <!-- Separate size selectors -->
             <div class="form-section">
                 <div class="form-group">
                     <label for="ai-size-select">AI Image Size:</label>
@@ -175,15 +175,11 @@
     </div>
 
     <div id="audio-processing-section" style="display:none;">
-
         <p id="story-transcription" style="display:none; white-space:pre-wrap;"></p>
-
         <div id="whisper-loading" class="loading-feedback" style="display:none;">
             Extracting details...
         </div>
-
         <audio controls id="uploaded-audio" class="uploaded-audio" style="margin-top:10px;"></audio>
-
         <p id="story-description" class="story-description" style="display:none;"></p>
 
         <div id="story-ingredients-container" style="display:none;">
@@ -225,7 +221,7 @@
 </main>
 
 <!-- Simple local image crop overlay -->
-<div class="simple-crop-overlay" id="local-image-crop-modal" style="display: none;">
+<div class="simple-crop-overlay" id="local-image-crop-modal" style="display:none;">
     <div class="simple-crop-content">
         <h3>Crop your image</h3>
         <div class="crop-container">
@@ -234,13 +230,20 @@
         </div>
         <div class="btn-row">
             <button id="crop-cancel" class="red-button">Cancel</button>
+
+            <!-- The user’s Add original checkbox -->
+            <label for="crop-add-ref" style="margin: 0 10px; color: #fff; align-self:center;">
+                <input type="checkbox" id="crop-add-ref" />
+                Add original image to references
+            </label>
+
             <button id="crop-confirm">Confirm Crop</button>
         </div>
     </div>
 </div>
 
 <!-- Edit Image Modal -->
-<div id="edit-image-modal">
+<div id="edit-image-modal" style="display:none;">
     <div id="edit-image-modal-content">
         <h3>Edit Image Prompt</h3>
         <textarea id="edit-modal-textarea"></textarea>
@@ -251,9 +254,8 @@
     </div>
 </div>
 
-<!-- Reference bar (no label) -->
+<!-- Reference bar at the bottom -->
 <div id="reference-bar">
-    <!-- Hidden file input -->
     <input
             type="file"
             id="reference-file-input"
@@ -261,7 +263,6 @@
             multiple
             style="display:none;"
     />
-    <!-- Single button to open file selector -->
     <button id="reference-open-file-btn">Add reference images</button>
     <div id="reference-files-list"></div>
 </div>

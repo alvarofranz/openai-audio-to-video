@@ -63,6 +63,7 @@ window.uploadAbortController = null;
 window.chunksData = [];
 window.isGeneratingImage = false;
 window.aspectRatio = 1.0;
+window.referenceImagesLocal = [];
 
 // Utility: fadeOut
 window.fadeOut = function(element, duration = 500) {

@@ -161,10 +161,10 @@ def generate_or_edit_image(
                 size=f"{width}x{height}",
                 quality=quality
             )
-            pretty_print_api_response(response)
             image_base64 = response.data[0].b64_json
         else:
             # Edit with references
+            pretty_print_api_response(reference_paths)
             image_files = []
             for ref_path in reference_paths:
                 image_files.append(open(ref_path, "rb"))
@@ -176,7 +176,6 @@ def generate_or_edit_image(
                 size=f"{width}x{height}",
                 quality=quality
             )
-            pretty_print_api_response(response)
             image_base64 = response.data[0].b64_json
             for f in image_files:
                 f.close()
