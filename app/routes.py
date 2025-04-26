@@ -308,8 +308,11 @@ def generate_image_route():
     os.makedirs(images_folder, exist_ok=True)
 
     def rename_with_suffix(old_path, suffix):
-        # keep the .png extension
-        base, ext = os.path.splitext(os.path.basename(old_path))  # e.g. "reference-abc123", ".png"
+        # Keep the .png extension but avoid double ".png" in the base name.
+        base, ext = os.path.splitext(os.path.basename(old_path))
+        # If the base still ends with ".png", remove it:
+        if base.endswith(".png"):
+            base = base[:-4]
         return os.path.join(images_folder, f"{base}{suffix}{ext}")
 
     # --------------------------------------------------

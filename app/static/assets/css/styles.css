@@ -493,3 +493,29 @@ figure img {
     justify-content: flex-end;
     width: 100%;
 }
+
+/* =========== Make the audio file selector look nicer =========== */
+input[type="file"] {
+    display: none; /* hide the real file input */
+}
+
+.form-group.full-width {
+    position: relative;
+}
+
+/* Custom label for audio file input */
+.form-group.full-width label[for="audio-file-input"] {
+    display: inline-block;
+    background: var(--dark-gray);
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    padding: 10px 15px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.2s ease;
+    width: auto;
+}
+
+.form-group.full-width label[for="audio-file-input"]:hover {
+    background: #4f4f4f;
+}

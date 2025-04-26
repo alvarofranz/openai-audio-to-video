@@ -1,3 +1,4 @@
+// image-handling.js
 // Manages AI image generation/edit, local image cropping, and references logic
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -60,6 +61,7 @@ document.addEventListener('DOMContentLoaded', function() {
         window.refFileInput.addEventListener("change", handleUploadReferenceFiles);
     }
 
+    // Edit modal
     const editModalCancel = document.getElementById("edit-modal-cancel");
     if (editModalCancel) {
         editModalCancel.addEventListener("click", () => {
@@ -69,12 +71,15 @@ document.addEventListener('DOMContentLoaded', function() {
     const editModalConfirm = document.getElementById("edit-modal-confirm");
     if (editModalConfirm) {
         editModalConfirm.addEventListener("click", async () => {
-            // Close modal
+            // Close modal first
             closeEditModal();
-            // Attempt edit in up to 5 tries
+
+            // Attempt the actual edit
             if (window.currentEditSceneIndex !== null) {
+                // scene edit
                 await doEditSceneImage(window.currentEditSceneIndex, 1);
             } else if (window.currentEditRefImageEl) {
+                // reference edit
                 await doEditReferenceImage(window.currentEditRefImageEl, 1);
             }
         });
@@ -100,24 +105,63 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-/**
- * Actually does the reference image editing,
- * rewriting the old reference in place.
- */
+/** Unified approach to open the "Edit Image" modal for a reference image */
+window.handleOpenEditReferenceImage = function(imgEl) {
+    window.currentEditSceneIndex = null; // reset
+    window.currentEditRefImageEl = imgEl;
+
+    const editModal = document.getElementById("edit-image-modal");
+    if (editModal) {
+        const editTextarea = document.getElementById("edit-modal-textarea");
+        if (editTextarea) {
+            editTextarea.value = ""; // always blank for reference edits
+        }
+        editModal.style.display = "flex";
+    }
+};
+
+/** Scenes: "Edit" button => open modal with blank text area */
+window.handleEditSceneImage = function(sceneIndex) {
+    window.currentEditSceneIndex = sceneIndex;
+    window.currentEditRefImageEl = null; // reset
+
+    const editModal = document.getElementById("edit-image-modal");
+    if (editModal) {
+        const editTextarea = document.getElementById("edit-modal-textarea");
+        if (editTextarea) {
+            editTextarea.value = ""; // always blank for scene edits
+        }
+        editModal.style.display = "flex";
+    }
+};
+
+/** Closes the "Edit Image" modal */
+function closeEditModal() {
+    const editModal = document.getElementById("edit-image-modal");
+    if (editModal) {
+        editModal.style.display = "none";
+    }
+    window.currentEditSceneIndex = null;
+    window.currentEditRefImageEl = null;
+}
+
+/** Actually call the edit API for a reference image (after user hits "Request Edit") */
 async function doEditReferenceImage(imgEl, attempt = 1) {
     if (!window.currentJobId) return;
+    if (window.isGeneratingImage && attempt === 1) return;
 
-    let srcNoQ = imgEl.src.split("?")[0];
-    let relativePath = srcNoQ.replace(/^.*\/static\//, "");
-    let oldRefFilename = relativePath.split("/").pop();
+    window.isGeneratingImage = true;
+    buttonsManager.handleAction('start_generation');
 
     const editTextarea = document.getElementById("edit-modal-textarea");
-    const newEditPrompt = editTextarea ? editTextarea.value : "Refine this reference image";
-
-    const editBtn = document.getElementById("edit-modal-confirm");
-    if (editBtn) {
-        editBtn.textContent = `Editing reference... (#${attempt})`;
+    let newEditPrompt = editTextarea ? editTextarea.value : "";
+    if (!newEditPrompt.trim()) {
+        newEditPrompt = "Refine this reference image";
     }
+
+    const srcNoQ = imgEl.src.split("?")[0];
+    const relativePath = srcNoQ.replace(/^.*\/static\//, "");
+    const oldRefFilename = relativePath.split("/").pop();
 
     try {
         const resp = await fetch("/generate-image", {
@@ -150,11 +194,8 @@ async function doEditReferenceImage(imgEl, attempt = 1) {
             alert("Error editing reference image (network).");
         }
     } finally {
-        if (editBtn) {
-            editBtn.textContent = "Request Edit";
-        }
         window.isGeneratingImage = false;
-        enableAllImageButtons();
+        buttonsManager.handleAction('finish_generation');
         window.currentEditRefImageEl = null;
     }
 }
@@ -212,7 +253,7 @@ async function handleUploadReferenceFiles() {
         window.refFileInput.value = "";
         return;
     }
-    disableAllImageButtons();
+    buttonsManager.handleAction('start_generation');
     window.isGeneratingImage = true;
 
     const fileList = Array.from(window.refFileInput.files);
@@ -243,7 +284,7 @@ async function handleUploadReferenceFiles() {
     }
     window.refFileInput.value = "";
     window.isGeneratingImage = false;
-    enableAllImageButtons();
+    buttonsManager.handleAction('finish_generation');
 }
 
 /**
@@ -313,7 +354,7 @@ function hideReferencePreview() {
 /**
  * Scene logic: pick local image => crop => place in scene
  */
-function handleSelectLocalImage(sceneIndex) {
+window.handleSelectLocalImage = function(sceneIndex) {
     if (window.isGeneratingImage) return;
     window.localImageSceneIndex = sceneIndex;
 
@@ -349,19 +390,19 @@ function handleSelectLocalImage(sceneIndex) {
         reader.readAsDataURL(window.originalFile);
     };
     fileInput.click();
-}
+};
 
 /**
  * Generate a new AI image for the scene
  */
-async function handleGenerateImage(sceneIndex, textArea, imgEl, regenBtn, attempt = 1) {
+window.handleGenerateImage = async function(sceneIndex, textArea, imgEl, regenBtn, attempt = 1) {
     if (attempt === 1) {
         if (window.isGeneratingImage) return;
         window.isGeneratingImage = true;
     }
 
     regenBtn.textContent = `Generating... (# ${attempt})`;
-    disableAllImageButtons();
+    buttonsManager.handleAction('start_generation');
 
     let refs = referenceImagesLocal
         .filter(r => r.selected)
@@ -394,7 +435,7 @@ async function handleGenerateImage(sceneIndex, textArea, imgEl, regenBtn, attemp
                 regenBtn.textContent = 'Generate';
             }
             window.isGeneratingImage = false;
-            enableAllImageButtons();
+            buttonsManager.handleAction('finish_generation');
             return;
         }
         imgEl.src = dataImg.image_url + "?t=" + Date.now();
@@ -405,14 +446,10 @@ async function handleGenerateImage(sceneIndex, textArea, imgEl, regenBtn, attemp
         }
         regenBtn.textContent = 'Regenerate';
 
-        // Show "Edit" button
+        // Once the image is loaded for this scene, enable the "Edit" button for the card
         const sceneCard = document.getElementById(`scene-card-${sceneIndex}`);
         if (sceneCard) {
-            const editBtn = sceneCard.querySelector('.edit-btn');
-            if (editBtn) {
-                editBtn.disabled = false;
-                editBtn.style.display = 'inline-block';
-            }
+            buttonsManager.handleAction('image_loaded', sceneCard);
         }
 
         // Let user immediately crop
@@ -432,41 +469,8 @@ async function handleGenerateImage(sceneIndex, textArea, imgEl, regenBtn, attemp
     }
 
     window.isGeneratingImage = false;
-    enableAllImageButtons();
-}
-
-/**
- * "Edit" button => open modal
- */
-function handleEditSceneImage(sceneIndex) {
-    window.currentEditSceneIndex = sceneIndex;
-    const editModal = document.getElementById("edit-image-modal");
-    if (editModal) {
-        editModal.style.display = "flex";
-    }
-    const editTextarea = document.getElementById("edit-modal-textarea");
-    if (editTextarea) {
-        const sceneCard = document.getElementById(`scene-card-${sceneIndex}`);
-        if (sceneCard) {
-            const promptArea = sceneCard.querySelector('.tab-content-prompt textarea');
-            if (promptArea) {
-                editTextarea.value = promptArea.value;
-            }
-        }
-    }
-}
-
-/**
- * Closes the "Edit Image" modal
- */
-function closeEditModal() {
-    const editModal = document.getElementById("edit-image-modal");
-    if (editModal) {
-        editModal.style.display = "none";
-    }
-    window.currentEditSceneIndex = null;
-    window.currentEditRefImageEl = null;
-}
+    buttonsManager.handleAction('finish_generation');
+};
 
 /**
  * Actually calls /generate-image with mode=edit_single for a scene
@@ -476,7 +480,7 @@ async function doEditSceneImage(sceneIndex, attempt) {
     if (window.isGeneratingImage && attempt === 1) return;
 
     window.isGeneratingImage = true;
-    disableAllImageButtons();
+    buttonsManager.handleAction('start_generation');
 
     const sceneCard = document.getElementById(`scene-card-${sceneIndex}`);
     const editBtn = sceneCard ? sceneCard.querySelector('.edit-btn') : null;
@@ -486,7 +490,10 @@ async function doEditSceneImage(sceneIndex, attempt) {
     }
 
     const editTextarea = document.getElementById("edit-modal-textarea");
-    const newEditPrompt = editTextarea ? editTextarea.value : "Fix this image";
+    let newEditPrompt = editTextarea ? editTextarea.value : "";
+    if (!newEditPrompt.trim()) {
+        newEditPrompt = "Fix this image";
+    }
 
     let refs = [`scene_${sceneIndex}.png`];
 
@@ -519,7 +526,7 @@ async function doEditSceneImage(sceneIndex, attempt) {
                 }
             }
             window.isGeneratingImage = false;
-            enableAllImageButtons();
+            buttonsManager.handleAction('finish_generation');
             return;
         }
         // updated scene image
@@ -548,7 +555,7 @@ async function doEditSceneImage(sceneIndex, attempt) {
 
     window.currentEditSceneIndex = null;
     window.isGeneratingImage = false;
-    enableAllImageButtons();
+    buttonsManager.handleAction('finish_generation');
 }
 
 /**
@@ -581,7 +588,7 @@ async function openCropModalFromURL(imageUrl, sceneIndex) {
     } catch (err) {
         console.error("[DEBUG] error openCropModalFromURL:", err);
         window.isGeneratingImage = false;
-        enableAllImageButtons();
+        buttonsManager.handleAction('finish_generation');
     }
 }
 
@@ -593,7 +600,7 @@ async function doCropConfirm() {
     if (!window.originalFile) {
         localImageCropModal.style.display = 'none';
         window.isGeneratingImage = false;
-        enableAllImageButtons();
+        buttonsManager.handleAction('finish_generation');
         return;
     }
 
@@ -619,7 +626,7 @@ async function doCropConfirm() {
         if (data.error) {
             alert(data.error);
             window.isGeneratingImage = false;
-            enableAllImageButtons();
+            buttonsManager.handleAction('finish_generation');
             localImageCropModal.style.display = 'none';
             return;
         }
@@ -648,21 +655,43 @@ async function doCropConfirm() {
     }
 
     window.isGeneratingImage = false;
-    enableAllImageButtons();
+    buttonsManager.handleAction('finish_generation');
     localImageCropModal.style.display = 'none';
+}
+
+/**
+ * Show the reference image in a modal => user can discard or add
+ */
+function showReferenceImageModal(imageUrl) {
+    const mod = document.getElementById("reference-image-modal");
+    const img = document.getElementById("reference-image-modal-img");
+    if (!mod || !img) return;
+
+    // So we can do "Add to references" properly
+    img.src = imageUrl;
+    img.setAttribute("data-fullsrc", imageUrl.replace(/\?t=\d+$/, ""));
+    mod.style.display = "flex";
+}
+
+/**
+ * Hide the reference image modal
+ */
+function hideReferenceImageModal() {
+    const mod = document.getElementById("reference-image-modal");
+    if (mod) mod.style.display = "none";
 }
 
 /**
  * "Generate Reference" => produce a new reference card image
  */
-async function handleGenerateReferenceCardImage(textArea, imgEl, button, editBtn, attempt = 1) {
+window.handleGenerateReferenceCardImage = async function(textArea, imgEl, button, editBtn, attempt = 1) {
     if (attempt === 1) {
         if (window.isGeneratingImage) return;
         window.isGeneratingImage = true;
     }
 
     button.textContent = `Generating... (# ${attempt})`;
-    disableAllImageButtons();
+    buttonsManager.handleAction('start_generation');
 
     let refs = referenceImagesLocal
         .filter(r => r.selected)
@@ -690,11 +719,12 @@ async function handleGenerateReferenceCardImage(textArea, imgEl, button, editBtn
                 button.textContent = 'Generate';
             }
             window.isGeneratingImage = false;
-            enableAllImageButtons();
+            buttonsManager.handleAction('finish_generation');
             return;
         }
         imgEl.src = dataImg.image_url + "?t=" + Date.now();
 
+        // Show the reference image modal => user can discard or add
         showReferenceImageModal(dataImg.image_url);
 
         editBtn.style.display = 'inline-block';
@@ -712,33 +742,15 @@ async function handleGenerateReferenceCardImage(textArea, imgEl, button, editBtn
     }
 
     window.isGeneratingImage = false;
-    enableAllImageButtons();
-}
-
-/**
- * Show reference image in a modal => user can discard/add
- */
-function showReferenceImageModal(imageUrl) {
-    const mod = document.getElementById("reference-image-modal");
-    const img = document.getElementById("reference-image-modal-img");
-    if (!mod || !img) return;
-
-    img.src = imageUrl;
-    img.setAttribute("data-fullsrc", imageUrl.replace(/\?t=\d+$/, ""));
-    mod.style.display = "flex";
-}
-
-function hideReferenceImageModal() {
-    const mod = document.getElementById("reference-image-modal");
-    if (mod) mod.style.display = "none";
-}
+    buttonsManager.handleAction('finish_generation');
+};
 
 /**
  * "Select local file" to replace a reference card
  */
-function handleSelectLocalReferenceImage(imgEl, editRefBtn) {
+window.handleSelectLocalReferenceImage = function(imgEl, editRefBtn) {
     if (window.isGeneratingImage) return;
-    disableAllImageButtons();
+    buttonsManager.handleAction('start_generation');
     window.isGeneratingImage = true;
 
     const fileInput = document.createElement('input');
@@ -748,16 +760,18 @@ function handleSelectLocalReferenceImage(imgEl, editRefBtn) {
     fileInput.onchange = async () => {
         if (!fileInput.files || !fileInput.files.length) {
             window.isGeneratingImage = false;
-            enableAllImageButtons();
+            buttonsManager.handleAction('finish_generation');
             return;
         }
         const localFile = fileInput.files[0];
         if (!localFile) {
             window.isGeneratingImage = false;
-            enableAllImageButtons();
+            buttonsManager.handleAction('finish_generation');
             return;
         }
 
+        // We'll re-use upload-local-image with mode=reference_card to store it
+        // so we have a new reference-X.png saved, then show a modal
         const formData = new FormData();
         formData.append('job_id', window.currentJobId);
         formData.append('scene_index', '0');
@@ -773,7 +787,7 @@ function handleSelectLocalReferenceImage(imgEl, editRefBtn) {
             if (data.error) {
                 alert(data.error);
                 window.isGeneratingImage = false;
-                enableAllImageButtons();
+                buttonsManager.handleAction('finish_generation');
                 return;
             }
             imgEl.src = data.image_url + "?t=" + Date.now();
@@ -786,102 +800,10 @@ function handleSelectLocalReferenceImage(imgEl, editRefBtn) {
         }
 
         window.isGeneratingImage = false;
-        enableAllImageButtons();
+        buttonsManager.handleAction('finish_generation');
     };
     fileInput.click();
-}
-
-/**
- * "Edit" an existing reference => new mode: "edit_reference_card"
- */
-async function handleEditReferenceImage(imgEl, textArea, editRefBtn, attempt = 1) {
-    if (attempt === 1) {
-        if (window.isGeneratingImage) return;
-        window.isGeneratingImage = true;
-    }
-    disableAllImageButtons();
-    editRefBtn.textContent = `Editing... (# ${attempt})`;
-
-    const newPrompt = textArea.value || "Refine this reference image";
-
-    let srcNoQ = imgEl.src.split("?")[0];
-    let relativePath = srcNoQ.replace(/^.*\/static\//, "");
-    let oldRefFilename = relativePath.split("/").pop();
-
-    try {
-        const resp = await fetch("/generate-image", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                job_id: window.currentJobId,
-                scene_index: 0,
-                new_prompt: newPrompt,
-                mode: "edit_reference_card",
-                references: [oldRefFilename]
-            })
-        });
-        const dataImg = await resp.json();
-        if (dataImg.error) {
-            console.error("[DEBUG] edit-reference_image error:", dataImg.error);
-            if (attempt < 5) {
-                await handleEditReferenceImage(imgEl, textArea, editRefBtn, attempt + 1);
-            } else {
-                editRefBtn.textContent = "Edit";
-            }
-            window.isGeneratingImage = false;
-            enableAllImageButtons();
-            return;
-        }
-        imgEl.src = dataImg.image_url + "?t=" + Date.now();
-        showReferenceImageModal(dataImg.image_url);
-
-        editRefBtn.textContent = "Edit";
-    } catch (err) {
-        console.error("[DEBUG] handleEditReferenceImage error:", err);
-        if (attempt < 5) {
-            await handleEditReferenceImage(imgEl, textArea, editRefBtn, attempt + 1);
-        } else {
-            alert("Error editing reference image");
-            editRefBtn.textContent = "Edit";
-        }
-    }
-
-    window.isGeneratingImage = false;
-    enableAllImageButtons();
-}
-
-/**
- * Disable all image-related buttons
- */
-function disableAllImageButtons() {
-    const allRegen = document.querySelectorAll('.regenerate-btn');
-    const allSelect = document.querySelectorAll('.select-local-btn');
-    const allEdits = document.querySelectorAll('.edit-btn');
-    allRegen.forEach(btn => btn.disabled = true);
-    allSelect.forEach(btn => btn.disabled = true);
-    allEdits.forEach(btn => btn.disabled = true);
-}
-
-/**
- * Re-enable all image-related buttons
- */
-function enableAllImageButtons() {
-    const allRegen = document.querySelectorAll('.regenerate-btn');
-    const allSelect = document.querySelectorAll('.select-local-btn');
-    const allEdits = document.querySelectorAll('.edit-btn');
-
-    allRegen.forEach(btn => {
-        if (btn.offsetParent !== null) btn.disabled = false;
-    });
-    allSelect.forEach(btn => {
-        if (btn.offsetParent !== null) btn.disabled = false;
-    });
-    allEdits.forEach(btn => {
-        if (btn.style.display !== 'none' && btn.offsetParent !== null) {
-            btn.disabled = false;
-        }
-    });
-}
+};
 
 function updateCropRect() {
     if (!cropRect) return;

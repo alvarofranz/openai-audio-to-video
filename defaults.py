@@ -1,14 +1,14 @@
-WORDS_PER_SCENE = 75
-TEXT_MODEL       = "o4-mini"
+WORDS_PER_SCENE          = 80
+TEXT_MODEL               = "o4-mini"
 IMAGES_AI_REQUESTED_SIZE = "1536x1024"
-VIDEO_SIZE       = "1920x1080"
-CROSSFADE_DUR    = 4.0
-FADE_IN          = 1.5
-FADE_OUT         = 2.0
-IMAGES_AI_QUALITY = "high"
+VIDEO_SIZE               = "1920x1080"
+CROSSFADE_DUR            = 4.0
+FADE_IN                  = 1.5
+FADE_OUT                 = 2.0
+IMAGES_AI_QUALITY        = "high"
 
 IMAGE_PROMPT_STYLE = (
-"""A cinematic illustration with full bleed that fills the entire 16:9 frame rendered in vivid beautiful scene, where the aesthetic is whimsical and magical, evoking a deep connection with nature and the overall tone is dreamlike and nostalgic, blending serene beauty with a touch of lighthearted magic. The style emphasizes detailed environments and elements, and an atmosphere filled with quiet wonder and subtle enchantment."""
+"""A cinematic full-bleed illustration that fills the entire 16:9 frame, rendered in vivid yet soft colors. The aesthetic is whimsical, magical, and nostalgic, with a slightly dreamlike tone. The textures are gently painterly, blending traditional oil painting warmth with modern digital clarity — very realistic but not hyper-realistic. The environments are rich, detailed, and lively, with many small, creative, almost hidden funny unexpected details (playful surprises to make the final scene worth watching with attention). Lighting is natural and warm, evoking a serene, enchanted atmosphere full of quiet wonder and gentle storytelling."""
 )
 
 CHARACTERS_PROMPT_STYLE = (

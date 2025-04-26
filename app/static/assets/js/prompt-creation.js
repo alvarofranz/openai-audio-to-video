@@ -1,3 +1,4 @@
+// prompt-creation.js
 // Manages generating scene prompts & final consistency adjustments
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -34,7 +35,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Enable "Generate Video" button area
         videoGenerationSection.style.display = 'block';
-        enableAllImageButtons();
+
+        // Re-enable buttons for each scene as needed
+        buttonsManager.enableAll();
     });
 });
 
@@ -59,11 +62,9 @@ function fillPromptTab(sceneCard, finalPrompt) {
         promptTab.value = finalPrompt;
         promptTab.disabled = false;
     }
-    // Enable "Generate" button now that we have a real prompt
-    const regenBtn = sceneCard.querySelector('.regenerate-btn');
-    if (regenBtn) {
-        regenBtn.disabled = false;
-    }
+
+    // Now that we have a prompt, enable the "Generate" button for this scene
+    buttonsManager.handleAction('prompt_available', sceneCard);
 }
 
 async function adjustAllPrompts() {

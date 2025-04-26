@@ -149,7 +149,8 @@
             </div>
             <div class="form-section">
                 <div class="form-group full-width">
-                    <label for="audio-file-input">Select audio file:</label>
+                    <!-- The <label> acts as a pretty button; input[type=file] is hidden in CSS -->
+                    <label for="audio-file-input">Select audio file</label>
                     <input
                             type="file"
                             id="audio-file-input"
@@ -285,6 +286,10 @@
 </div>
 
 <script src="{{ url_for('static', filename='assets/js/general.js') }}"></script>
+
+<!-- Newly added: the buttons-manager script -->
+<script src="{{ url_for('static', filename='assets/js/buttons-manager.js') }}"></script>
+
 <script src="{{ url_for('static', filename='assets/js/storyboard-setup.js') }}"></script>
 <script src="{{ url_for('static', filename='assets/js/prompt-creation.js') }}"></script>
 <script src="{{ url_for('static', filename='assets/js/image-handling.js') }}"></script>

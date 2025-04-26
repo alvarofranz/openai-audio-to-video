@@ -130,11 +130,7 @@ window.resetUI = function() {
     window.sceneGenerated = [];
     window.chunksData = [];
 
-    // Show initial UI again
     if (initialUIContainer) initialUIContainer.style.display = 'block';
-
-    // Do NOT override the text in the initial screen textareas:
-    // (We just hide advanced sections on error.)
     if (uploadingSection) uploadingSection.style.display = 'none';
     if (audioProcessingSection) audioProcessingSection.style.display = 'none';
     if (storyTranscription) {
@@ -169,31 +165,9 @@ window.resetUI = function() {
     if (mainHeader) mainHeader.textContent = "Make your story alive";
 };
 
-// Update crop rect
-window.updateCropRect = function() {
-    if (!cropRect) return;
-    cropRect.style.left = window.rectX + 'px';
-    cropRect.style.top = window.rectY + 'px';
-    cropRect.style.width = window.rectW + 'px';
-    cropRect.style.height = window.rectH + 'px';
-};
+// We no longer define disableAllImageButtons/enableAllImageButtons here.
+// The new central manager is in buttons-manager.js
 
-// Enable/disable scene card image buttons
-window.disableAllImageButtons = function() {
-    const allRegen = document.querySelectorAll('.regenerate-btn');
-    const allSelect = document.querySelectorAll('.scene-card figcaption button:nth-of-type(2)');
-    allRegen.forEach(btn => { btn.disabled = true; });
-    allSelect.forEach(btn => { btn.disabled = true; });
-};
-
-window.enableAllImageButtons = function() {
-    const allRegen = document.querySelectorAll('.regenerate-btn');
-    const allSelect = document.querySelectorAll('.scene-card figcaption button:nth-of-type(2)');
-    allRegen.forEach(btn => { btn.disabled = false; });
-    allSelect.forEach(btn => { btn.disabled = false; });
-};
-
-// DOMContentLoaded => references
 document.addEventListener('DOMContentLoaded', function() {
     window.initialUIContainer = document.getElementById('initial-ui-container');
     window.audioFileInput      = document.getElementById('audio-file-input');
@@ -273,14 +247,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
         window.rectX = newLeft;
         window.rectY = newTop;
-        updateCropRect();
+        window.updateCropRect();
     });
 
     if (cropCancelBtn) {
         cropCancelBtn.addEventListener('click', () => {
             window.localImageCropModal.style.display = 'none';
             window.isGeneratingImage = false;
-            enableAllImageButtons();
+            buttonsManager.enableAll();
         });
     }
 });
