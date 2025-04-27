@@ -37,17 +37,6 @@ def generate_title_and_description(client: OpenAI, full_text: str, text_model: s
     except Exception:
         return {"title": "Untitled", "description": "No description available."}
 
-def shorten_prompt_if_needed(prompt: str, max_bytes: int = 4000, encoding: str = "utf-8"):
-    data = prompt.encode(encoding)
-    if len(data) <= max_bytes:
-        return prompt
-    cut = data[: max_bytes - 10]
-    # ensure we don't cut in the middle of a multi-byte char
-    while cut and (cut[-1] & 0b11000000) == 0b10000000:
-        cut = cut[:-1]
-    shortened = cut.decode(encoding, errors="ignore").rstrip()
-    return f"{shortened}..."
-
 def preprocess_story_data(
     client: OpenAI,
     full_story: str,
@@ -127,12 +116,11 @@ def preprocess_image_prompt(
         )
         pretty_print_api_response(completion.choices[0])
         refined_prompt = completion.choices[0].message.content.strip()
-        refined_prompt = shorten_prompt_if_needed(refined_prompt)
         return refined_prompt
     except Exception as e:
         log(f"Error calling GPT for prompt preprocessing: {e}", "prompt_utils")
         fallback = f"{style_prefix} {scene_text}"
-        return shorten_prompt_if_needed(fallback)
+        return fallback
 
 def generate_or_edit_image(
     client: OpenAI,
@@ -149,15 +137,14 @@ def generate_or_edit_image(
     Using model="gpt-image-1", we get a Python object with .data[0].b64_json
     (not JSON with "data" array). We'll decode & save to output_path.
     """
-    prompt_for_api = shorten_prompt_if_needed(final_prompt, 4000)
-    log(f"Image generation/edit with prompt:\n{prompt_for_api}", "prompt_utils")
+    log(f"Image generation/edit with prompt:\n{final_prompt}", "prompt_utils")
 
     try:
         if not reference_paths:
             # Normal generation
             response = client.images.generate(
                 model="gpt-image-1",
-                prompt=prompt_for_api,
+                prompt=final_prompt,
                 size=f"{width}x{height}",
                 quality=quality
             )
@@ -172,7 +159,7 @@ def generate_or_edit_image(
             response = client.images.edit(
                 model="gpt-image-1",
                 image=image_files,
-                prompt=prompt_for_api,
+                prompt=final_prompt,
                 size=f"{width}x{height}",
                 quality=quality
             )
