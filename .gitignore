@@ -1,3 +1,7 @@
 .idea
 .env
 app/static/projects/*
+app/static/default-reference-images/*
+files-in-prompt.txt
+prompt-start.txt
+prompt.txt
