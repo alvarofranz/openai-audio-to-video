@@ -35,6 +35,16 @@ from defaults import (
 main_bp = Blueprint("main", __name__)
 CURRENT_JOBS = {}
 
+def rename_with_suffix(old_path, suffix):
+    """
+    Keep the .png extension but avoid double ".png" in the base name.
+    Returns the same directory with a new base name + suffix + extension.
+    """
+    base, ext = os.path.splitext(os.path.basename(old_path))
+    if base.endswith(".png"):
+        base = base[:-4]
+    return os.path.join(os.path.dirname(old_path), f"{base}{suffix}{ext}")
+
 @main_bp.route("/", methods=["GET"])
 def index():
     return render_template(
@@ -307,14 +317,6 @@ def generate_image_route():
     images_folder = os.path.join(job_data["job_folder"], "images")
     os.makedirs(images_folder, exist_ok=True)
 
-    def rename_with_suffix(old_path, suffix):
-        # Keep the .png extension but avoid double ".png" in the base name.
-        base, ext = os.path.splitext(os.path.basename(old_path))
-        # If the base still ends with ".png", remove it:
-        if base.endswith(".png"):
-            base = base[:-4]
-        return os.path.join(images_folder, f"{base}{suffix}{ext}")
-
     # --------------------------------------------------
     # REFERENCE CARD GENERATION
     # --------------------------------------------------
@@ -365,13 +367,17 @@ def generate_image_route():
             return jsonify({"error": "Reference file not found"}), 400
 
         short_uniq = str(uuid.uuid4())[:6]
-        renamed_path = rename_with_suffix(old_full_path, f"_unused-{short_uniq}")
-        os.rename(old_full_path, renamed_path)
+        # rename old to keep it
+        unused_path = rename_with_suffix(old_full_path, f"_unused-{short_uniq}")
+        os.rename(old_full_path, unused_path)
 
-        references_paths = [renamed_path]
+        references_paths = [unused_path]
         new_prompt += " - Please edit the image provided. Only change what is in the prompt, it is very important to keep everything else as is."
 
-        new_full_path = os.path.join(images_folder, old_ref_filename)
+        # produce a new unique filename for the edited reference
+        new_ref_filename = f"reference_edit_{short_uniq}.png"
+        new_full_path = os.path.join(images_folder, new_ref_filename)
+
         new_image_path = generate_or_edit_image(
             client=client,
             final_prompt=new_prompt,
@@ -387,7 +393,7 @@ def generate_image_route():
         rel_path = new_image_path.split("app/static/")[-1]
         return jsonify({
             "image_url": f"/static/{rel_path}",
-            "unused_old_image": f"/static/{renamed_path.split('app/static/')[-1]}"
+            "unused_old_image": f"/static/{unused_path.split('app/static/')[-1]}"
         })
 
     # --------------------------------------------------
@@ -479,7 +485,7 @@ def generate_image_route():
 def upload_local_image():
     job_id = request.form.get("job_id")
     scene_index = request.form.get("scene_index")
-    mode = request.form.get("mode", "scene")  # "scene" or "reference_card"
+    mode = request.form.get("mode", "scene")
     if not job_id or scene_index is None:
         return jsonify({"error": "Missing job_id or scene_index"}), 400
 
@@ -521,8 +527,9 @@ def upload_local_image():
     except:
         return jsonify({"error": "Invalid bounding box data"}), 400
 
-    existing_path = os.path.join(images_folder, f"scene_{scene_index}.png")
     unused_old_image = None
+
+    existing_path = os.path.join(images_folder, f"scene_{scene_index}.png")
     if os.path.isfile(existing_path):
         short_uniq = str(uuid.uuid4())[:6]
         base, ext = os.path.splitext(existing_path)

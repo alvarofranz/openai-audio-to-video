@@ -387,7 +387,7 @@ function createReferenceGeneratorCard() {
 
     // "Edit" references
     editRefBtn.addEventListener('click', () => {
-        handleEditReferenceImage(imgEl, textArea, editRefBtn);
+        handleEditReferenceImage(imgEl);
     });
 }
 

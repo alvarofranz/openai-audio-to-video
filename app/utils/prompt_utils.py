@@ -204,12 +204,12 @@ def image_prompts_adjustment(
          - Preserves every character, prop, and stylistic detail defined in story_ingredients without change.
          - Uses the same language the story is written in.
          - Advances the timeline, so that no two refined prompts may show the exact same instant.
-         Is self-contained (no references to other scenes or to these instructions)."""
+         - Is completely self-contained with all necessary details to represent the image (no references to other scenes or to these instructions)."""
         "JSON OUTPUT\n\n"
         "{\n"
         '  "adjusted_scene_prompts": [\n'
-        '    {"scene_index": 0, "prompt": "final refined prompt for this specific scene 0 - between 1800 and 2200 chars"},\n'
-        '    {"scene_index": 1, "prompt": "final refined prompt for this specific scene 1 - between 1800 and 2200 chars"},\n'
+        '    {"scene_index": 0, "prompt": "final self-contained refined prompt for this specific scene 0 - between 2500 and 3000 chars"},\n'
+        '    {"scene_index": 1, "prompt": "final self-contained refined prompt for this specific scene 1 - between 2500 and 3000 chars"},\n'
         "    ...\n"
         "  ]\n"
         "}\n\n"

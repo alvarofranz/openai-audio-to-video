@@ -71,10 +71,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const editModalConfirm = document.getElementById("edit-modal-confirm");
     if (editModalConfirm) {
         editModalConfirm.addEventListener("click", async () => {
-            // Close modal first
             closeEditModal();
-
-            // Attempt the actual edit
             if (window.currentEditSceneIndex !== null) {
                 // scene edit
                 await doEditSceneImage(window.currentEditSceneIndex, 1);
@@ -106,7 +103,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 /** Unified approach to open the "Edit Image" modal for a reference image */
-window.handleOpenEditReferenceImage = function(imgEl) {
+window.handleEditReferenceImage = function(imgEl) {
     window.currentEditSceneIndex = null; // reset
     window.currentEditRefImageEl = imgEl;
 
@@ -141,17 +138,22 @@ function closeEditModal() {
     if (editModal) {
         editModal.style.display = "none";
     }
-    window.currentEditSceneIndex = null;
-    window.currentEditRefImageEl = null;
 }
 
-/** Actually call the edit API for a reference image (after user hits "Request Edit") */
+/** Actually call the edit API for a reference image */
 async function doEditReferenceImage(imgEl, attempt = 1) {
     if (!window.currentJobId) return;
     if (window.isGeneratingImage && attempt === 1) return;
 
     window.isGeneratingImage = true;
     buttonsManager.handleAction('start_generation');
+
+    const referenceCard = document.getElementById(`reference-generator-card`);
+    const editBtn = referenceCard ? referenceCard.querySelector('.edit-btn') : null;
+    if (editBtn) {
+        editBtn.disabled = true;
+        editBtn.textContent = `Editing... (# ${attempt})`;
+    }
 
     const editTextarea = document.getElementById("edit-modal-textarea");
     let newEditPrompt = editTextarea ? editTextarea.value : "";
@@ -180,24 +182,124 @@ async function doEditReferenceImage(imgEl, attempt = 1) {
             console.error("Error editing reference:", dataImg.error);
             if (attempt < 5) {
                 await doEditReferenceImage(imgEl, attempt + 1);
-            } else {
-                alert("Failed to edit reference.");
+            } else if (editBtn) {
+                editBtn.textContent = "Edit";
+                editBtn.disabled = false;
             }
+            window.isGeneratingImage = false;
+            buttonsManager.handleAction('finish_generation');
             return;
         }
         imgEl.src = dataImg.image_url + "?t=" + Date.now();
+
+        // Show the "add to references" modal with the newly edited image
+        showReferenceImageModal(dataImg.image_url);
+
+        if (editBtn) {
+            editBtn.textContent = "Edit";
+            editBtn.disabled = false;
+        }
+
     } catch (err) {
         console.error("Network error editing reference:", err);
         if (attempt < 5) {
             await doEditReferenceImage(imgEl, attempt + 1);
-        } else {
-            alert("Error editing reference image (network).");
+        } else if (editBtn) {
+            editBtn.textContent = "Edit";
+            editBtn.disabled = false;
         }
     } finally {
         window.isGeneratingImage = false;
         buttonsManager.handleAction('finish_generation');
         window.currentEditRefImageEl = null;
     }
+}
+
+/** Actually call the edit API for a scene image */
+async function doEditSceneImage(sceneIndex, attempt) {
+    if (!window.currentJobId) return;
+    if (window.isGeneratingImage && attempt === 1) return;
+
+    window.isGeneratingImage = true;
+    buttonsManager.handleAction('start_generation');
+
+    const sceneCard = document.getElementById(`scene-card-${sceneIndex}`);
+    const editBtn = sceneCard ? sceneCard.querySelector('.edit-btn') : null;
+    if (editBtn) {
+        editBtn.disabled = true;
+        editBtn.textContent = `Editing... (# ${attempt})`;
+    }
+
+    const editTextarea = document.getElementById("edit-modal-textarea");
+    let newEditPrompt = editTextarea ? editTextarea.value : "";
+    if (!newEditPrompt.trim()) {
+        newEditPrompt = "Fix this image";
+    }
+
+    let refs = [`scene_${sceneIndex}.png`];
+
+    const [twStr, thStr] = window.videoSizeSelect.value.split('x');
+    const tw = parseInt(twStr, 10) || 1920;
+    const th = parseInt(thStr, 10) || 1080;
+    window.aspectRatio = tw / th;
+
+    try {
+        const resp = await fetch('/generate-image', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                job_id: window.currentJobId,
+                scene_index: sceneIndex,
+                new_prompt: newEditPrompt,
+                mode: "edit_single",
+                references: refs
+            })
+        });
+        const dataImg = await resp.json();
+        if (dataImg.error) {
+            console.error("[DEBUG] edit-image error:", dataImg.error);
+            if (attempt < 5) {
+                await doEditSceneImage(sceneIndex, attempt + 1);
+            } else if (editBtn) {
+                editBtn.textContent = "Edit";
+                editBtn.disabled = false;
+            }
+            window.isGeneratingImage = false;
+            buttonsManager.handleAction('finish_generation');
+            return;
+        }
+        // updated scene image
+        if (sceneCard) {
+            const imgEl = sceneCard.querySelector('figure img');
+            if (imgEl) {
+                imgEl.src = dataImg.image_url + "?t=" + Date.now();
+            }
+        }
+
+        // Automatically add the old replaced image to references if it exists
+        if (dataImg.unused_old_image) {
+            await addReference(dataImg.unused_old_image);
+        }
+
+        // Open the cropping modal so user can recrop the newly edited scene
+        await openCropModalFromURL(dataImg.image_url, sceneIndex);
+
+        if (editBtn) {
+            editBtn.textContent = "Edit";
+            editBtn.disabled = false;
+        }
+    } catch (err) {
+        console.error("[DEBUG] confirmEditScene error:", err);
+        if (attempt < 5) {
+            await doEditSceneImage(sceneIndex, attempt + 1);
+        } else {
+            alert("Error editing scene image");
+        }
+    }
+
+    window.currentEditSceneIndex = null;
+    window.isGeneratingImage = false;
+    buttonsManager.handleAction('finish_generation');
 }
 
 /**
@@ -227,9 +329,10 @@ async function addReference(refPath) {
             const bname = refPath.split("/").pop();
             let alreadyIn = referenceImagesLocal.find(r => r.filename === bname);
             if (!alreadyIn) {
-                const finalURL = refPath.startsWith("/static/")
-                    ? refPath
-                    : "/static/" + window.currentJobId + "/images/" + bname;
+                let finalURL = refPath;
+                if (!finalURL.startsWith("/static/")) {
+                    finalURL = "/static/" + window.currentJobId + "/images/" + bname;
+                }
                 referenceImagesLocal.push({
                     filename: bname,
                     url: finalURL,
@@ -271,10 +374,10 @@ async function handleUploadReferenceFiles() {
                 console.error("Error uploading reference:", data.error);
                 continue;
             }
-            const objURL = URL.createObjectURL(f);
+            const finalURL = `/static/projects/${window.currentJobId}/images/${data.reference_path}`;
             referenceImagesLocal.push({
                 filename: data.reference_path,
-                url: objURL,
+                url: finalURL,
                 selected: true
             });
             updateReferenceFilesList();
@@ -473,92 +576,6 @@ window.handleGenerateImage = async function(sceneIndex, textArea, imgEl, regenBt
 };
 
 /**
- * Actually calls /generate-image with mode=edit_single for a scene
- */
-async function doEditSceneImage(sceneIndex, attempt) {
-    if (!window.currentJobId) return;
-    if (window.isGeneratingImage && attempt === 1) return;
-
-    window.isGeneratingImage = true;
-    buttonsManager.handleAction('start_generation');
-
-    const sceneCard = document.getElementById(`scene-card-${sceneIndex}`);
-    const editBtn = sceneCard ? sceneCard.querySelector('.edit-btn') : null;
-    if (editBtn) {
-        editBtn.disabled = true;
-        editBtn.textContent = `Editing... (# ${attempt})`;
-    }
-
-    const editTextarea = document.getElementById("edit-modal-textarea");
-    let newEditPrompt = editTextarea ? editTextarea.value : "";
-    if (!newEditPrompt.trim()) {
-        newEditPrompt = "Fix this image";
-    }
-
-    let refs = [`scene_${sceneIndex}.png`];
-
-    const [twStr, thStr] = window.videoSizeSelect.value.split('x');
-    const tw = parseInt(twStr, 10) || 1920;
-    const th = parseInt(thStr, 10) || 1080;
-    window.aspectRatio = tw / th;
-
-    try {
-        const resp = await fetch('/generate-image', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                job_id: window.currentJobId,
-                scene_index: sceneIndex,
-                new_prompt: newEditPrompt,
-                mode: "edit_single",
-                references: refs
-            })
-        });
-        const dataImg = await resp.json();
-        if (dataImg.error) {
-            console.error("[DEBUG] edit-image error:", dataImg.error);
-            if (attempt < 5) {
-                await doEditSceneImage(sceneIndex, attempt + 1);
-            } else {
-                if (editBtn) {
-                    editBtn.textContent = "Edit";
-                    editBtn.disabled = false;
-                }
-            }
-            window.isGeneratingImage = false;
-            buttonsManager.handleAction('finish_generation');
-            return;
-        }
-        // updated scene image
-        if (sceneCard) {
-            const imgEl = sceneCard.querySelector('figure img');
-            if (imgEl) {
-                imgEl.src = dataImg.image_url + "?t=" + Date.now();
-            }
-        }
-
-        // Let user immediately crop
-        await openCropModalFromURL(dataImg.image_url, sceneIndex);
-
-        if (editBtn) {
-            editBtn.textContent = "Edit";
-            editBtn.disabled = false;
-        }
-    } catch (err) {
-        console.error("[DEBUG] confirmEditScene error:", err);
-        if (attempt < 5) {
-            await doEditSceneImage(sceneIndex, attempt + 1);
-        } else {
-            alert("Error editing scene image");
-        }
-    }
-
-    window.currentEditSceneIndex = null;
-    window.isGeneratingImage = false;
-    buttonsManager.handleAction('finish_generation');
-}
-
-/**
  * Loads an AI-generated image => open crop UI
  */
 async function openCropModalFromURL(imageUrl, sceneIndex) {
@@ -594,7 +611,7 @@ async function openCropModalFromURL(imageUrl, sceneIndex) {
 
 /**
  * Crop confirm => /upload-local-image => update scene
- * If "crop-add-ref" is checked, we add the old image to references
+ * If "crop-add-ref" is checked, add either old replaced or new final to references.
  */
 async function doCropConfirm() {
     if (!window.originalFile) {
@@ -607,6 +624,8 @@ async function doCropConfirm() {
     const sceneIndex = window.localImageSceneIndex;
     const formData = new FormData();
     formData.append('job_id', window.currentJobId);
+    formData.append('mode', 'scene');
+
     formData.append('scene_index', sceneIndex);
     formData.append('image_file', window.originalFile);
 
@@ -643,12 +662,17 @@ async function doCropConfirm() {
             generateVideoBtn.disabled = false;
         }
 
-        // Only add the old version if "crop-add-ref" is checked
         const addRefCheckbox = document.getElementById('crop-add-ref');
-        if (addRefCheckbox && addRefCheckbox.checked && data.unused_old_image) {
-            await addReference(data.unused_old_image);
+        if (addRefCheckbox && addRefCheckbox.checked) {
+            // If we replaced an existing scene, data.unused_old_image might exist,
+            // but with mode=scene_local, that rename logic is skipped,
+            // so it should be null. We add the new final image to references.
+            if (data.unused_old_image) {
+                await addReference(data.unused_old_image);
+            } else {
+                await addReference(data.image_url);
+            }
         }
-
     } catch (err) {
         console.error("[DEBUG] error uploading local image crop:", err);
         alert("Error uploading/cropping image");
@@ -667,8 +691,8 @@ function showReferenceImageModal(imageUrl) {
     const img = document.getElementById("reference-image-modal-img");
     if (!mod || !img) return;
 
-    // So we can do "Add to references" properly
     img.src = imageUrl;
+    // remove ?t=... so we have a stable path
     img.setAttribute("data-fullsrc", imageUrl.replace(/\?t=\d+$/, ""));
     mod.style.display = "flex";
 }
@@ -771,7 +795,6 @@ window.handleSelectLocalReferenceImage = function(imgEl, editRefBtn) {
         }
 
         // We'll re-use upload-local-image with mode=reference_card to store it
-        // so we have a new reference-X.png saved, then show a modal
         const formData = new FormData();
         formData.append('job_id', window.currentJobId);
         formData.append('scene_index', '0');
