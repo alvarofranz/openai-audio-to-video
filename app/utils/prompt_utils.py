@@ -12,10 +12,9 @@ def generate_title_and_description(client: OpenAI, full_text: str, text_model: s
     prompt_text = (
         "You are a helpful assistant. The user has provided the following story text, in an unknown language. "
         "We need you to generate a short 'title' and a short 'description' for this story, both in the same language as the provided story text. Importantly, the "
-        "title and description must be in the SAME language as the original text. The output must clearly be "
-        "in the format:\n\n"
-        "title: <related-emoji> <captivating amazing creative title of around 10 words, no new lines> <another-related-emoji>\n"
-        "description: <some description of around 100 words, no new lines>\n\n"
+        "title and description must be in the SAME language as the original text. The output must clearly be in the following two-lines format with key:value and nothing else\n\n"
+        "title: <related-emoji> <captivating amazing creative title of around 5 words, no new lines> <another-related-emoji>\n"
+        "description: <captivating description of around 100 words, no new lines>\n\n"
         f"Story text:\n{full_text}\n\n"
         "Now output only the two items with no newlines or extra commentary for each item, because it will be processed programmatically and needs to be just two lines, one for title:, and one for description:."
     )
