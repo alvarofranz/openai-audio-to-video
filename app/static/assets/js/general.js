@@ -91,10 +91,10 @@ window.fadeIn = function(element, duration = 500) {
         if (!start) start = timestamp;
         const progress = timestamp - start;
         let opacity = Math.min(progress / duration, 1);
-        element.style.opacity = opacity;
         if (progress < duration) {
             requestAnimationFrame(animate);
         }
+        element.style.opacity = opacity;
     }
     requestAnimationFrame(animate);
 };
@@ -215,6 +215,21 @@ document.addEventListener('DOMContentLoaded', function() {
     window.cropRect               = document.getElementById('crop-rect');
     window.cropCancelBtn          = document.getElementById('crop-cancel');
     window.cropConfirmBtn         = document.getElementById('crop-confirm');
+
+    // Reference to the label for "Select audio file"
+    const audioFileLabel = document.querySelector('#audio-file-input-label');
+
+    if (window.audioFileInput) {
+        window.audioFileInput.addEventListener('change', (e) => {
+            if (e.target.files && e.target.files.length > 0) {
+                // Update the label text
+                audioFileLabel.innerHTML = '<strong>Selected</strong>: ' + e.target.files[0].name;
+            } else {
+                // Reset the label if no file selected
+                audioFileLabel.innerHTML = 'Select audio file';
+            }
+        });
+    }
 
     // Basic dragging for the cropRect
     if (cropRect) {
