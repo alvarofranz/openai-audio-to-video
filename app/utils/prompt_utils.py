@@ -204,7 +204,7 @@ def image_prompts_adjustment(
          - Preserves every character, prop, and stylistic detail defined in story_ingredients without change.
          - Uses the same language the story is written in.
          - Advances the timeline, so that no two refined prompts may show the exact same instant.
-         - Is completely self-contained with all necessary details to represent the image (no references to other scenes or to these instructions)."""
+         - Is completely self-contained with all necessary details to represent the image (completely forbidden to include references to character names, previous scenes or to these instructions, just pure visual descriptions to make a perfect final image)."""
         "JSON OUTPUT\n\n"
         "{\n"
         '  "adjusted_scene_prompts": [\n'

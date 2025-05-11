@@ -1,3 +1,9 @@
+/*
+========================================================
+  1) IMPORTS & ROOT VARIABLES
+========================================================
+*/
+
 /* Import Google Fonts */
 @import url("https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&family=Roboto+Mono&display=swap");
 
@@ -16,6 +22,13 @@
     --hover-red: #ff206d;
     --dark-gray: #2b2b2b;
 }
+
+
+/*
+========================================================
+  2) BASE ELEMENTS
+========================================================
+*/
 
 body {
     margin: 0;
@@ -41,7 +54,13 @@ main {
     padding: 20px;
 }
 
-/* ------------ Settings Container & Forms ------------ */
+
+/*
+========================================================
+  3) SETTINGS CONTAINER & FORMS
+========================================================
+*/
+
 .settings-container {
     background: var(--color-gray);
     padding: 20px;
@@ -138,7 +157,13 @@ audio {
     width: 100%;
 }
 
-/* ------------ Story / Scenes ------------ */
+
+/*
+========================================================
+  4) STORY / SCENES
+========================================================
+*/
+
 #story-ingredients-container {
     margin-bottom: 20px;
 }
@@ -200,7 +225,13 @@ figure img {
     gap: 5px;
 }
 
-/* ------------ Tabs ------------ */
+
+/*
+========================================================
+  5) TABS
+========================================================
+*/
+
 .tab-container,
 .tabs-container {
     display: flex;
@@ -270,7 +301,13 @@ figure img {
     border-radius: 0;
 }
 
-/* ------------ Final video ------------ */
+
+/*
+========================================================
+  6) FINAL VIDEO
+========================================================
+*/
+
 #final-video-section {
     text-align: center;
 }
@@ -298,7 +335,13 @@ figure img {
     border-radius: 4px;
 }
 
-/* ------------ Cropping Overlay ------------ */
+
+/*
+========================================================
+  7) CROPPING OVERLAY
+========================================================
+*/
+
 .simple-crop-overlay {
     position: fixed;
     top: 0;
@@ -350,7 +393,13 @@ figure img {
     gap: 10px;
 }
 
-/* ------------ Reference Bar ------------ */
+
+/*
+========================================================
+  8) REFERENCE BAR & THUMBNAILS
+========================================================
+*/
+
 #reference-bar {
     display: none;
     position: fixed;
@@ -368,8 +417,10 @@ figure img {
 #reference-files-list {
     display: flex;
     gap: 8px;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;         /* keep in a single line */
+    overflow-x: auto;         /* horizontal scroll if needed */
     align-items: center;
+    width: 100%;
 }
 
 .ref-thumb {
@@ -384,11 +435,47 @@ figure img {
 .ref-thumb.selected {
     border: 2px solid var(--color-green);
 }
+
 .ref-thumb.unselected {
     border: 2px solid var(--color-red);
 }
 
-/* ------------ Edit modal ------------ */
+/* Container for each reference item so we can position the remove button */
+.ref-item-wrapper {
+    position: relative;
+    display: inline-block;
+}
+
+.ref-remove-btn {
+    display: none;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 20px;
+    height: 20px;
+    background-color: var(--color-red);
+    color: #fff;
+    border-radius: 4px;
+    font-size: 12px;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border: 2px solid #fff;
+    box-shadow: 0 0 2px rgba(0,0,0,0.5);
+    z-index: 1;
+}
+
+.ref-item-wrapper:hover .ref-remove-btn{
+    display: flex;
+}
+
+
+/*
+========================================================
+  9) EDIT MODAL
+========================================================
+*/
+
 #edit-image-modal {
     position: fixed;
     top: 0;
@@ -429,7 +516,13 @@ figure img {
     gap: 10px;
 }
 
-/* ------------ Hover Preview Overlay ------------ */
+
+/*
+========================================================
+  10) HOVER PREVIEW OVERLAY
+========================================================
+*/
+
 #reference-hover-preview {
     position: fixed;
     top: 0;
@@ -456,7 +549,13 @@ figure img {
     border-radius: 4px;
 }
 
-/* ------------ Reference Image Decision Modal ------------ */
+
+/*
+========================================================
+  11) REFERENCE IMAGE DECISION MODAL
+========================================================
+*/
+
 #reference-image-modal {
     position: fixed;
     top: 0;
@@ -494,7 +593,13 @@ figure img {
     width: 100%;
 }
 
-/* =========== Make the audio file selector look nicer =========== */
+
+/*
+========================================================
+  12) CUSTOM FILE INPUT
+========================================================
+*/
+
 input[type="file"] {
     display: none; /* hide the real file input */
 }
@@ -517,4 +622,5 @@ input[type="file"] {
 
 #audio-file-input-label:hover {
     border-color: var(--accent-color);
+    background-color: var(--color-orange);
 }

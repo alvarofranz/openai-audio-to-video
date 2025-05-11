@@ -392,24 +392,42 @@ async function handleUploadReferenceFiles() {
 
 /**
  * Refresh the reference thumbnails list
+ * Now each thumbnail has a "remove" button in top-left corner.
  */
 function updateReferenceFilesList() {
     const listEl = document.getElementById("reference-files-list");
     if (!listEl) return;
     listEl.innerHTML = "";
-    referenceImagesLocal.forEach(ref => {
+
+    referenceImagesLocal.forEach((ref, idx) => {
+        const wrapper = document.createElement("div");
+        wrapper.className = "ref-item-wrapper";
+
+        // Red "X" remove button
+        const removeBtn = document.createElement("div");
+        removeBtn.className = "ref-remove-btn";
+        removeBtn.textContent = "X";
+        removeBtn.addEventListener("click", () => {
+            // Remove from referenceImagesLocal
+            referenceImagesLocal.splice(idx, 1);
+            // Re-render
+            updateReferenceFilesList();
+        });
+        wrapper.appendChild(removeBtn);
+
         const img = document.createElement("img");
         img.src = ref.url;
         img.className = "ref-thumb";
 
         if (ref.selected) {
+            img.classList.remove("unselected");
             img.classList.add("selected");
         } else {
             img.classList.remove("selected");
             img.classList.add("unselected");
         }
 
-        // Toggle selection
+        // Toggle selection on click
         img.addEventListener("click", () => {
             ref.selected = !ref.selected;
             if (ref.selected) {
@@ -421,6 +439,7 @@ function updateReferenceFilesList() {
             }
         });
 
+        // Hover preview
         let hoverTimer = null;
         img.addEventListener("mouseenter", () => {
             hoverTimer = setTimeout(() => {
@@ -435,7 +454,8 @@ function updateReferenceFilesList() {
             hideReferencePreview();
         });
 
-        listEl.appendChild(img);
+        wrapper.appendChild(img);
+        listEl.appendChild(wrapper);
     });
 }
 
@@ -664,9 +684,6 @@ async function doCropConfirm() {
 
         const addRefCheckbox = document.getElementById('crop-add-ref');
         if (addRefCheckbox && addRefCheckbox.checked) {
-            // If we replaced an existing scene, data.unused_old_image might exist,
-            // but with mode=scene_local, that rename logic is skipped,
-            // so it should be null. We add the new final image to references.
             if (data.unused_old_image) {
                 await addReference(data.unused_old_image);
             } else {
