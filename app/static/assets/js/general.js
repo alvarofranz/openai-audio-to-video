@@ -209,6 +209,7 @@ document.addEventListener('DOMContentLoaded', function() {
     window.fadeInInput            = document.getElementById('fade-in');
     window.fadeOutInput           = document.getElementById('fade-out');
     window.crossfadeInput         = document.getElementById('crossfade-dur');
+    window.transitionDisplacement = document.getElementById('transition-displacement');
 
     window.localImageCropModal    = document.getElementById('local-image-crop-modal');
     window.localImagePreview      = document.getElementById('local-image-preview');

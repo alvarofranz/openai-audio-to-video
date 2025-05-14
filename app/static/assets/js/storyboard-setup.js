@@ -34,6 +34,7 @@ async function handleAudioUpload() {
     formData.append('fade_in', fadeInInput.value);
     formData.append('fade_out', fadeOutInput.value);
     formData.append('crossfade_dur', crossfadeInput.value);
+    formData.append('transition_displacement', transitionDisplacement.value);
 
     initialUIContainer.style.display = 'none';
     uploadingSection.style.display = 'block';
@@ -208,7 +209,14 @@ function createSceneCard(sceneIndex) {
     selectLocalBtn.textContent = 'Select Image';
     selectLocalBtn.classList.add('select-local-btn');
 
-    // "Edit" button
+    // "Overlay" button (hidden/disabled by default)
+    const overlayBtn = document.createElement('button');
+    overlayBtn.textContent = 'Overlay';
+    overlayBtn.classList.add('overlay-btn');
+    overlayBtn.disabled = true;
+    overlayBtn.style.display = 'none';
+
+    // "Edit" button (hidden/disabled by default)
     const editBtn = document.createElement('button');
     editBtn.textContent = 'Edit';
     editBtn.classList.add('edit-btn');
@@ -223,6 +231,7 @@ function createSceneCard(sceneIndex) {
 
     figureEl.appendChild(imgEl);
     figureEl.appendChild(selectLocalBtn);
+    figureEl.appendChild(overlayBtn);
     figureEl.appendChild(bottomBtnsDiv);
 
     const cardContent = document.createElement('div');
@@ -254,9 +263,13 @@ function createSceneCard(sceneIndex) {
 
     fillSceneText(sceneIndex, sceneTextBlock);
 
-    // Add event handlers for "Generate" and "Select" and "Edit"
+    // Add event handlers for "Generate", "Select", "Overlay", and "Edit"
     regenBtn.addEventListener('click', () =>
         handleGenerateImage(sceneIndex, textArea, imgEl, regenBtn)
+    );
+
+    overlayBtn.addEventListener('click', () =>
+        handleOverlayImage(sceneIndex)
     );
 
     selectLocalBtn.addEventListener('click', () =>
@@ -276,7 +289,7 @@ function fillSceneText(sceneIndex, sceneTextBlock) {
     const displayText = chunk.raw_text;
     const startSeconds = chunk.start;
     const endSeconds = chunk.end;
-    const rangeStr = formatDuration(startSeconds, endSeconds);
+    const rangeStr = parseTime(startSeconds) + " - " + parseTime(endSeconds);
     sceneTextBlock.textContent = `"${displayText}"\nDuration: ${rangeStr}`;
 }
 

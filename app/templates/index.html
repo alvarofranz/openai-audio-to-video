@@ -4,14 +4,11 @@
     <meta charset="UTF-8" />
     <title>Storytelling Dashboard</title>
 
-    <!-- Favicon -->
     <link
             rel="icon"
             type="image/png"
             href="{{ url_for('static', filename='assets/img/favicon.png') }}"
     >
-
-    <!-- Main stylesheet -->
     <link
             rel="stylesheet"
             href="{{ url_for('static', filename='assets/css/styles.css') }}"
@@ -23,7 +20,6 @@
 </header>
 
 <main id="main-content">
-    <!-- Combined settings + audio selection container -->
     <div class="settings-container" id="initial-ui-container">
         <form id="settings-form" class="settings-form">
             <h2>Video & Prompt Settings</h2>
@@ -48,7 +44,6 @@
                 </div>
             </div>
 
-            <!-- Separate size selectors -->
             <div class="form-section">
                 <div class="form-group">
                     <label for="ai-size-select">AI Image Size:</label>
@@ -62,6 +57,7 @@
                     <select id="video-size">
                         <option value="1920x1080" {% if default_video_size == '1920x1080' %}selected{% endif %}>1920x1080</option>
                         <option value="1024x1024" {% if default_video_size == '1024x1024' %}selected{% endif %}>1024x1024</option>
+                        <option value="3840x2160" {% if default_video_size == '3840x2160' %}selected{% endif %}>3840x2160</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -112,6 +108,19 @@
             </div>
 
             <div class="form-section">
+                <div class="form-group">
+                    <label for="transition-displacement">Transition displacement (seconds):</label>
+                    <input
+                            type="number"
+                            id="transition-displacement"
+                            value="-3.0"
+                            class="small-input"
+                            step="0.1"
+                    >
+                </div>
+            </div>
+
+            <div class="form-section">
                 <div class="form-group full-width">
                     <label for="image-prompt-style">Image Prompt Style</label>
                     <p class="help-text">
@@ -149,7 +158,6 @@
             </div>
             <div class="form-section">
                 <div class="form-group full-width">
-                    <!-- The <label> acts as a pretty button; input[type=file] is hidden in CSS -->
                     <label id="audio-file-input-label" for="audio-file-input">Select audio file</label>
                     <input
                             type="file"
@@ -168,7 +176,7 @@
         </form>
     </div>
 
-    <div id="uploading-section" class="uploading-section" style="display:none;">
+    <div id="uploading-section" style="display:none;">
         <p id="uploading-feedback" class="loading-feedback">
             Uploading audio...
         </p>
@@ -180,8 +188,8 @@
         <div id="whisper-loading" class="loading-feedback" style="display:none;">
             Extracting details...
         </div>
-        <audio controls id="uploaded-audio" class="uploaded-audio" style="margin-top:10px;"></audio>
-        <p id="story-description" class="story-description" style="display:none;"></p>
+        <audio controls id="uploaded-audio" style="margin-top:10px;"></audio>
+        <p id="story-description" style="display:none;"></p>
 
         <div id="story-ingredients-container" style="display:none;">
             <label>Story Ingredients:</label>
@@ -219,81 +227,86 @@
         </video>
         <div id="final-video-path"></div>
     </div>
-</main>
 
-<!-- Simple local image crop overlay -->
-<div class="simple-crop-overlay" id="local-image-crop-modal" style="display:none;">
-    <div class="simple-crop-content">
-        <h3>Crop your image</h3>
-        <div class="crop-container">
-            <img id="local-image-preview" alt="preview" />
-            <div id="crop-rect"></div>
-        </div>
-        <div class="btn-row">
-            <button id="crop-cancel" class="red-button">Cancel</button>
+    <!-- Cropping modal -->
+    <div class="simple-crop-overlay" id="local-image-crop-modal" style="display:none;">
+        <div class="simple-crop-content">
+            <h3>Crop your image</h3>
+            <div class="crop-container">
+                <img id="local-image-preview" alt="preview" />
+                <div id="crop-rect"></div>
+            </div>
 
-            <!-- The user’s Add original checkbox -->
-            <label for="crop-add-ref" style="margin: 0 10px; color: #fff; align-self:center;">
-                <input type="checkbox" id="crop-add-ref" />
-                Add original image to references
-            </label>
+            <div id="overlay-opacity-controls" style="display:none; margin: 10px 0; align-items: center;">
+                <label for="overlay-opacity-slider" style="margin-right: 10px;">Overlay Opacity:</label>
+                <input
+                        type="range"
+                        id="overlay-opacity-slider"
+                        min="0"
+                        max="100"
+                        value="85"
+                        style="flex-grow: 1; margin-right: 10px;"
+                >
+                <span id="overlay-opacity-value">85%</span>
+            </div>
 
-            <button id="crop-confirm">Confirm Crop</button>
-        </div>
-    </div>
-</div>
+            <div class="btn-row">
+                <button id="crop-cancel" class="red-button">Cancel</button>
 
-<!-- Edit Image Modal -->
-<div id="edit-image-modal" style="display:none;">
-    <div id="edit-image-modal-content">
-        <h3>Edit Image Prompt</h3>
-        <textarea id="edit-modal-textarea"></textarea>
-        <div class="edit-modal-buttons">
-            <button id="edit-modal-cancel" class="red-button">Cancel</button>
-            <button id="edit-modal-confirm">Request Edit</button>
-        </div>
-    </div>
-</div>
+                <!-- Give the label an ID so we can hide it for overlay -->
+                <label id="crop-add-ref-label" for="crop-add-ref" style="margin: 0 10px; color: #fff; align-self:center;">
+                    <input type="checkbox" id="crop-add-ref" />
+                    Add original image to references
+                </label>
 
-<!-- Reference bar at the bottom -->
-<div id="reference-bar">
-    <input
-            type="file"
-            id="reference-file-input"
-            accept="image/*"
-            multiple
-            style="display:none;"
-    />
-    <button id="reference-open-file-btn">Add reference images</button>
-    <div id="reference-files-list"></div>
-</div>
-
-<!-- Hover preview overlay -->
-<div id="reference-hover-preview" style="display:none;">
-    <img id="reference-hover-preview-img" src="" alt="Reference Preview" />
-</div>
-
-<!-- Reference Image Decision Modal -->
-<div id="reference-image-modal" style="display:none;">
-    <div id="reference-image-modal-content">
-        <h3>Reference Image Generated</h3>
-        <img id="reference-image-modal-img" src="" alt="Reference Preview" />
-        <div class="reference-image-modal-buttons">
-            <button id="reference-discard-btn" class="red-button">Discard</button>
-            <button id="reference-add-btn">Add to references</button>
+                <button id="crop-confirm">Confirm Crop</button>
+            </div>
         </div>
     </div>
-</div>
 
-<script src="{{ url_for('static', filename='assets/js/general.js') }}"></script>
+    <div id="edit-image-modal" style="display:none;">
+        <div id="edit-image-modal-content">
+            <h3>Edit Image Prompt</h3>
+            <textarea id="edit-modal-textarea"></textarea>
+            <div class="edit-modal-buttons">
+                <button id="edit-modal-cancel" class="red-button">Cancel</button>
+                <button id="edit-modal-confirm">Request Edit</button>
+            </div>
+        </div>
+    </div>
 
-<!-- Newly added: the buttons-manager script -->
-<script src="{{ url_for('static', filename='assets/js/buttons-manager.js') }}"></script>
+    <div id="reference-bar" style="display:none;">
+        <input
+                type="file"
+                id="reference-file-input"
+                accept="image/*"
+                multiple
+                style="display:none;"
+        />
+        <button id="reference-open-file-btn">Add reference images</button>
+        <div id="reference-files-list"></div>
+    </div>
 
-<script src="{{ url_for('static', filename='assets/js/storyboard-setup.js') }}"></script>
-<script src="{{ url_for('static', filename='assets/js/prompt-creation.js') }}"></script>
-<script src="{{ url_for('static', filename='assets/js/image-handling.js') }}"></script>
-<script src="{{ url_for('static', filename='assets/js/video-creation.js') }}"></script>
+    <div id="reference-hover-preview" style="display:none;">
+        <img id="reference-hover-preview-img" src="" alt="Reference Preview" />
+    </div>
 
+    <div id="reference-image-modal" style="display:none;">
+        <div id="reference-image-modal-content">
+            <h3>Reference Image Generated</h3>
+            <img id="reference-image-modal-img" src="" alt="Reference Preview" />
+            <div class="reference-image-modal-buttons">
+                <button id="reference-discard-btn" class="red-button">Discard</button>
+                <button id="reference-add-btn">Add to references</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='assets/js/general.js') }}"></script>
+    <script src="{{ url_for('static', filename='assets/js/buttons-manager.js') }}"></script>
+    <script src="{{ url_for('static', filename='assets/js/storyboard-setup.js') }}"></script>
+    <script src="{{ url_for('static', filename='assets/js/prompt-creation.js') }}"></script>
+    <script src="{{ url_for('static', filename='assets/js/image-handling.js') }}"></script>
+    <script src="{{ url_for('static', filename='assets/js/video-creation.js') }}"></script>
 </body>
 </html>

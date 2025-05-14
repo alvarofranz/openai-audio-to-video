@@ -13,11 +13,9 @@ from app.utils.prompt_utils import (
     preprocess_image_prompt,
     preprocess_story_data,
     generate_title_and_description,
-    image_prompts_adjustment,
     generate_or_edit_image
 )
 from app.utils.image_utils import process_local_image
-
 from defaults import (
     WORDS_PER_SCENE,
     TEXT_MODEL,
@@ -91,6 +89,7 @@ def upload_audio():
     fade_out_str = request.form.get("fade_out", f"{FADE_OUT}").strip()
     crossfade_str = request.form.get("crossfade_dur", f"{CROSSFADE_DUR}").strip()
     images_ai_quality = request.form.get("images_ai_quality", IMAGES_AI_QUALITY).strip()
+    transition_displacement_str = request.form.get("transition_displacement", "0.00")
 
     try:
         wps = int(words_per_scene_str)
@@ -126,6 +125,11 @@ def upload_audio():
     except:
         crossfade_val = CROSSFADE_DUR
 
+    try:
+        transition_displacement_val = float(transition_displacement_str)
+    except:
+        transition_displacement_val = 0.0
+
     audio_basename = os.path.splitext(os.path.basename(file.filename))[0]
     short_uniq = str(uuid.uuid4())[:6]
     job_id = f"{audio_basename}-{short_uniq}"
@@ -145,7 +149,6 @@ def upload_audio():
     full_text = whisper_data.text.strip()
     log(f"Full Text for {job_id}: {full_text}", "routes")
 
-    # Store partial job data
     CURRENT_JOBS[job_id] = {
         "audio_path": audio_path,
         "whisper_data": whisper_data,
@@ -163,6 +166,7 @@ def upload_audio():
         "fade_in": fade_in_val,
         "fade_out": fade_out_val,
         "crossfade_dur": crossfade_val,
+        "transition_displacement": transition_displacement_val,
         "title": None,
         "description": None,
         "story_ingredients": None,
@@ -294,7 +298,7 @@ def generate_image_route():
       - normal generation (no references),
       - generation with references,
       - editing a single existing scene image,
-      - reference_card mode for generating reference images,
+      - reference_card mode,
       - editing an existing reference card
     """
     load_dotenv()
@@ -307,7 +311,7 @@ def generate_image_route():
     job_id = data.get("job_id")
     scene_index = data.get("scene_index")
     new_prompt = data.get("new_prompt", "")
-    mode = data.get("mode", "normal")  # "normal", "edit_single", "reference_card", "edit_reference_card"
+    mode = data.get("mode", "normal")
     reference_list = data.get("references", [])
 
     job_data = CURRENT_JOBS.get(job_id)
@@ -367,14 +371,12 @@ def generate_image_route():
             return jsonify({"error": "Reference file not found"}), 400
 
         short_uniq = str(uuid.uuid4())[:6]
-        # rename old to keep it
         unused_path = rename_with_suffix(old_full_path, f"_unused-{short_uniq}")
         os.rename(old_full_path, unused_path)
 
         references_paths = [unused_path]
         new_prompt += " - Please edit the image provided. Only change what is in the prompt, it is very important to keep everything else as is."
 
-        # produce a new unique filename for the edited reference
         new_ref_filename = f"reference_edit_{short_uniq}.png"
         new_full_path = os.path.join(images_folder, new_ref_filename)
 
@@ -500,8 +502,8 @@ def upload_local_image():
     images_folder = os.path.join(job_data["job_folder"], "images")
     os.makedirs(images_folder, exist_ok=True)
 
+    # REFERENCE CARD mode
     if mode == "reference_card":
-        # No cropping or resizing, store as reference-{uniq}.png
         short_uniq = str(uuid.uuid4())[:6]
         ref_filename = f"reference-{short_uniq}.png"
         ref_path = os.path.join(images_folder, ref_filename)
@@ -509,7 +511,51 @@ def upload_local_image():
         rel_path = ref_path.split("app/static/")[-1]
         return jsonify({"image_url": f"/static/{rel_path}"})
 
-    # Otherwise, normal scene logic with cropping
+    # OVERLAY mode
+    if mode == "scene_overlay":
+        box_x_str = request.form.get("box_x", "0")
+        box_y_str = request.form.get("box_y", "0")
+        box_w_str = request.form.get("box_w", "0")
+        box_h_str = request.form.get("box_h", "0")
+        disp_w_str = request.form.get("displayed_w", "0")
+        disp_h_str = request.form.get("displayed_h", "0")
+
+        try:
+            box_x = float(box_x_str)
+            box_y = float(box_y_str)
+            box_w = float(box_w_str)
+            box_h = float(box_h_str)
+            disp_w = float(disp_w_str)
+            disp_h = float(disp_h_str)
+        except:
+            return jsonify({"error": "Invalid bounding box data"}), 400
+
+        short_uniq = str(uuid.uuid4())[:6]
+        overlay_filename = f"overlay-{short_uniq}.png"
+        overlay_path = os.path.join(images_folder, overlay_filename)
+
+        try:
+            process_local_image(
+                image_file.stream,
+                overlay_path,
+                job_data["video_width"],
+                job_data["video_height"],
+                crop_x=box_x,
+                crop_y=box_y,
+                crop_w=box_w,
+                crop_h=box_h,
+                displayed_w=disp_w,
+                displayed_h=disp_h
+            )
+        except Exception as e:
+            return jsonify({"error": f"Could not process/crop overlay image: {str(e)}"}), 500
+
+        # No references for overlay
+        return jsonify({
+            "overlay_filename": overlay_filename
+        })
+
+    # Otherwise, normal scene logic
     box_x_str = request.form.get("box_x", "0")
     box_y_str = request.form.get("box_y", "0")
     box_w_str = request.form.get("box_w", "0")
@@ -556,10 +602,23 @@ def upload_local_image():
         return jsonify({"error": f"Could not process/crop image: {str(e)}"}), 500
 
     job_data["images"][int(scene_index)] = output_path
+
+    add_ref = request.form.get("crop_add_ref", "false").lower() == "true"
+    added_ref_filename = None
+    if add_ref:
+        # We'll store the final scene_{scene_index}.png in reference_images
+        scene_png = f"scene_{scene_index}.png"
+        if scene_png not in job_data["reference_images"]:
+            job_data["reference_images"].append(scene_png)
+            added_ref_filename = scene_png
+
     rel_path = output_path.split("app/static/")[-1]
+
+    # If we added to references, we return that info so front-end can update the thumbs
     return jsonify({
         "image_url": f"/static/{rel_path}",
-        "unused_old_image": unused_old_image
+        "unused_old_image": unused_old_image,
+        "added_ref_filename": added_ref_filename  # may be None if not added
     })
 
 @main_bp.route("/upload-reference-image", methods=["POST"])
@@ -615,7 +674,8 @@ def create_video_endpoint():
             job_data["video_height"],
             fade_in=job_data["fade_in"],
             fade_out=job_data["fade_out"],
-            crossfade_dur=job_data["crossfade_dur"]
+            crossfade_dur=job_data["crossfade_dur"],
+            transition_displacement=job_data["transition_displacement"]
         )
     except Exception as e:
         return jsonify({"error": f"Failed to create video: {str(e)}"}), 500
@@ -631,74 +691,6 @@ def cancel_job():
     if job_id in CURRENT_JOBS:
         del CURRENT_JOBS[job_id]
     return jsonify({"status": "cancelled"})
-
-@main_bp.route("/adjust-prompts", methods=["POST"])
-def adjust_prompts():
-    load_dotenv()
-    api_key = os.getenv("OPENAI_API_KEY", "")
-    if not api_key:
-        return jsonify({"error": "OPENAI_API_KEY not set"}), 500
-    client = OpenAI(api_key=api_key)
-
-    data = request.json
-    job_id = data.get("job_id")
-    job_data = CURRENT_JOBS.get(job_id)
-    if not job_data:
-        return jsonify({"error": "No such job"}), 400
-
-    full_text = job_data["full_text"]
-    story_ingredients = job_data["story_ingredients"]
-    text_model = job_data["text_model"]
-    scene_chunks = job_data["chunks"]
-    existing_prompts = job_data["prompts"]
-
-    try:
-        result = image_prompts_adjustment(
-            client=client,
-            full_story=full_text,
-            story_ingredients=story_ingredients,
-            scene_chunks=scene_chunks,
-            existing_prompts=existing_prompts,
-            text_model=text_model
-        )
-        if not result or "adjusted_scene_prompts" not in result:
-            # Just keep existing prompts
-            adjusted_prompts = []
-            for i, existing_prompt in enumerate(existing_prompts):
-                adjusted_prompts.append({
-                    "scene_index": i,
-                    "prompt": existing_prompt
-                })
-            return jsonify({"adjusted_prompts": adjusted_prompts})
-
-        adjusted_prompts = result["adjusted_scene_prompts"]
-        if len(adjusted_prompts) != len(existing_prompts):
-            # Mismatch => also just keep existing prompts
-            adjusted_prompts = []
-            for i, existing_prompt in enumerate(existing_prompts):
-                adjusted_prompts.append({
-                    "scene_index": i,
-                    "prompt": existing_prompt
-                })
-            return jsonify({"adjusted_prompts": adjusted_prompts})
-
-        # Otherwise, success. Overwrite the job_data prompts
-        for item in adjusted_prompts:
-            i = item["scene_index"]
-            job_data["prompts"][i] = item["prompt"]
-
-        return jsonify({"adjusted_prompts": adjusted_prompts})
-
-    except Exception as e:
-        log(f"Error adjusting prompts: {e}", "routes")
-        # On any exception => keep existing prompts
-        adjusted_prompts = []
-        for i, existing_prompt in enumerate(existing_prompts):
-            adjusted_prompts.append({
-                "scene_index": i,
-                "prompt": existing_prompt
-            })
-        return jsonify({"adjusted_prompts": adjusted_prompts})
 
 @main_bp.route("/list-default-references", methods=["GET"])
 def list_default_references():
@@ -740,3 +732,57 @@ def add_reference():
             job_data["reference_images"].append(base_name)
 
     return jsonify({"status": "ok"})
+
+# NEW route to merge an overlay over a scene
+from app.utils.image_utils import overlay_images
+
+@main_bp.route("/overlay-scene-image", methods=["POST"])
+def overlay_scene_image():
+    """
+    Merges an overlay_{uniq}.png onto the existing scene_{scene_index}.png
+    with the given opacity (0..100).
+    """
+    data = request.json
+    job_id = data.get("job_id")
+    scene_index = data.get("scene_index")
+    overlay_filename = data.get("overlay_filename", "")
+    opacity_str = data.get("opacity", "80")
+
+    job_data = CURRENT_JOBS.get(job_id)
+    if not job_data:
+        return jsonify({"error": "No such job"}), 400
+
+    images_folder = os.path.join(job_data["job_folder"], "images")
+    scene_path = os.path.join(images_folder, f"scene_{scene_index}.png")
+    overlay_path = os.path.join(images_folder, overlay_filename)
+    if not os.path.isfile(scene_path):
+        return jsonify({"error": "Base scene image not found"}), 400
+    if not os.path.isfile(overlay_path):
+        return jsonify({"error": "Overlay file not found"}), 400
+
+    try:
+        opacity_val = float(opacity_str)
+    except:
+        opacity_val = 80.0
+
+    short_uniq = str(uuid.uuid4())[:6]
+    backup_scene_path = rename_with_suffix(scene_path, f"_unused-{short_uniq}")
+    os.rename(scene_path, backup_scene_path)
+
+    try:
+        overlay_images(
+            base_image_path=backup_scene_path,
+            overlay_image_path=overlay_path,
+            output_path=scene_path,
+            opacity_percent=opacity_val
+        )
+    except Exception as e:
+        return jsonify({"error": f"Could not overlay images: {str(e)}"}), 500
+
+    job_data["images"][int(scene_index)] = scene_path
+    rel_path = scene_path.split("app/static/")[-1]
+
+    return jsonify({
+        "image_url": f"/static/{rel_path}",
+        "unused_old_image": f"/static/{backup_scene_path.split('app/static/')[-1]}"
+    })

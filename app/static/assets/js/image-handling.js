@@ -1,10 +1,21 @@
-// image-handling.js
 // Manages AI image generation/edit, local image cropping, and references logic
 
 document.addEventListener('DOMContentLoaded', function() {
     // Single "Add reference images" button now:
     window.refFileInput = document.getElementById("reference-file-input");
     window.refOpenFileBtn = document.getElementById("reference-open-file-btn");
+    window.opacitySlider = document.getElementById("overlay-opacity-slider");
+    window.opacityValue = document.getElementById("overlay-opacity-value");
+
+    // Setup overlay opacity controls
+    if (window.opacitySlider) {
+        window.opacitySlider.addEventListener("input", function() {
+            if (window.opacityValue) {
+                window.opacityValue.textContent = opacitySlider.value + "%";
+            }
+            window.overlayOpacity = parseInt(opacitySlider.value, 10);
+        });
+    }
 
     if (cropConfirmBtn) {
         cropConfirmBtn.addEventListener('click', doCropConfirm);
@@ -102,37 +113,78 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-/** Unified approach to open the "Edit Image" modal for a reference image */
-window.handleEditReferenceImage = function(imgEl) {
-    window.currentEditSceneIndex = null; // reset
-    window.currentEditRefImageEl = imgEl;
+/** Scenes: "Overlay" button => crop, then merges with existing scene */
+window.overlayInProgress = false;
+window.overlayOpacity = 85;
 
-    const editModal = document.getElementById("edit-image-modal");
-    if (editModal) {
-        const editTextarea = document.getElementById("edit-modal-textarea");
-        if (editTextarea) {
-            editTextarea.value = ""; // always blank for reference edits
-        }
-        editModal.style.display = "flex";
+window.handleOverlayImage = function(sceneIndex) {
+    if (window.isGeneratingImage) return;
+    const sceneCard = document.getElementById(`scene-card-${sceneIndex}`);
+    const imgEl = sceneCard ? sceneCard.querySelector('figure img') : null;
+    if (!imgEl || !imgEl.src || imgEl.src.endsWith("placeholder.png")) {
+        return;
     }
+    window.overlayInProgress = true;
+    window.localImageSceneIndex = sceneIndex;
+
+    // Hide the "Add original to references" label
+    const addRefLabel = document.getElementById('crop-add-ref-label');
+    if (addRefLabel) {
+        addRefLabel.style.display = 'none';
+    }
+
+    // Show the opacity controls for overlay mode
+    const opacityControls = document.getElementById("overlay-opacity-controls");
+    if (opacityControls) {
+        opacityControls.style.display = "flex";
+    }
+
+    if (window.opacitySlider) {
+        window.opacitySlider.value = window.overlayOpacity;
+    }
+    if (window.opacityValue) {
+        window.opacityValue.textContent = window.overlayOpacity + "%";
+    }
+
+    const [twStr, thStr] = window.videoSizeSelect.value.split('x');
+    const tw = parseInt(twStr, 10) || 1920;
+    const th = parseInt(thStr, 10) || 1080;
+    window.aspectRatio = tw / th;
+
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'image/*';
+    fileInput.onchange = () => {
+        if (!fileInput.files || !fileInput.files.length) {
+            window.overlayInProgress = false;
+            return;
+        }
+        window.originalFile = fileInput.files[0];
+        if (!window.originalFile) {
+            window.overlayInProgress = false;
+            return;
+        }
+
+        localImageCropModal.style.display = 'flex';
+        window.rectX = 0;
+        window.rectY = 0;
+        window.rectW = 100;
+        window.rectH = 100;
+        window.dragging = false;
+        window.dragOffsetX = 0;
+        window.dragOffsetY = 0;
+
+        const reader = new FileReader();
+        reader.onload = ev => {
+            if (localImagePreview) {
+                localImagePreview.src = ev.target.result;
+            }
+        };
+        reader.readAsDataURL(window.originalFile);
+    };
+    fileInput.click();
 };
 
-/** Scenes: "Edit" button => open modal with blank text area */
-window.handleEditSceneImage = function(sceneIndex) {
-    window.currentEditSceneIndex = sceneIndex;
-    window.currentEditRefImageEl = null; // reset
-
-    const editModal = document.getElementById("edit-image-modal");
-    if (editModal) {
-        const editTextarea = document.getElementById("edit-modal-textarea");
-        if (editTextarea) {
-            editTextarea.value = ""; // always blank for scene edits
-        }
-        editModal.style.display = "flex";
-    }
-};
-
-/** Closes the "Edit Image" modal */
 function closeEditModal() {
     const editModal = document.getElementById("edit-image-modal");
     if (editModal) {
@@ -140,7 +192,29 @@ function closeEditModal() {
     }
 }
 
-/** Actually call the edit API for a reference image */
+async function processImageResponse(response, sceneCard, editBtn) {
+    const data = await response.json();
+    if (data.error) {
+        console.error("Error processing image:", data.error);
+        return { success: false, data };
+    }
+
+    if (sceneCard) {
+        const imgEl = sceneCard.querySelector('figure img');
+        if (imgEl) {
+            imgEl.src = data.image_url + "?t=" + Date.now();
+        }
+    }
+
+    if (editBtn) {
+        editBtn.textContent = "Edit";
+        editBtn.disabled = false;
+    }
+
+    return { success: true, data };
+}
+
+/** Reference editing */
 async function doEditReferenceImage(imgEl, attempt = 1) {
     if (!window.currentJobId) return;
     if (window.isGeneratingImage && attempt === 1) return;
@@ -177,28 +251,19 @@ async function doEditReferenceImage(imgEl, attempt = 1) {
                 references: [oldRefFilename]
             })
         });
-        const dataImg = await resp.json();
-        if (dataImg.error) {
-            console.error("Error editing reference:", dataImg.error);
+
+        const result = await processImageResponse(resp, null, editBtn);
+        if (!result.success) {
             if (attempt < 5) {
                 await doEditReferenceImage(imgEl, attempt + 1);
-            } else if (editBtn) {
-                editBtn.textContent = "Edit";
-                editBtn.disabled = false;
             }
             window.isGeneratingImage = false;
             buttonsManager.handleAction('finish_generation');
             return;
         }
-        imgEl.src = dataImg.image_url + "?t=" + Date.now();
 
-        // Show the "add to references" modal with the newly edited image
-        showReferenceImageModal(dataImg.image_url);
-
-        if (editBtn) {
-            editBtn.textContent = "Edit";
-            editBtn.disabled = false;
-        }
+        imgEl.src = result.data.image_url + "?t=" + Date.now();
+        showReferenceImageModal(result.data.image_url);
 
     } catch (err) {
         console.error("Network error editing reference:", err);
@@ -215,7 +280,35 @@ async function doEditReferenceImage(imgEl, attempt = 1) {
     }
 }
 
-/** Actually call the edit API for a scene image */
+window.handleEditReferenceImage = function(imgEl) {
+    window.currentEditSceneIndex = null;
+    window.currentEditRefImageEl = imgEl;
+
+    const editModal = document.getElementById("edit-image-modal");
+    if (editModal) {
+        const editTextarea = document.getElementById("edit-modal-textarea");
+        if (editTextarea) {
+            editTextarea.value = "";
+        }
+        editModal.style.display = "flex";
+    }
+};
+
+/** Scenes: "Edit" button => open modal */
+window.handleEditSceneImage = function(sceneIndex) {
+    window.currentEditSceneIndex = sceneIndex;
+    window.currentEditRefImageEl = null;
+
+    const editModal = document.getElementById("edit-image-modal");
+    if (editModal) {
+        const editTextarea = document.getElementById("edit-modal-textarea");
+        if (editTextarea) {
+            editTextarea.value = "";
+        }
+        editModal.style.display = "flex";
+    }
+};
+
 async function doEditSceneImage(sceneIndex, attempt) {
     if (!window.currentJobId) return;
     if (window.isGeneratingImage && attempt === 1) return;
@@ -255,39 +348,24 @@ async function doEditSceneImage(sceneIndex, attempt) {
                 references: refs
             })
         });
-        const dataImg = await resp.json();
-        if (dataImg.error) {
-            console.error("[DEBUG] edit-image error:", dataImg.error);
+
+        const result = await processImageResponse(resp, sceneCard, editBtn);
+        if (!result.success) {
             if (attempt < 5) {
                 await doEditSceneImage(sceneIndex, attempt + 1);
-            } else if (editBtn) {
-                editBtn.textContent = "Edit";
-                editBtn.disabled = false;
             }
             window.isGeneratingImage = false;
             buttonsManager.handleAction('finish_generation');
             return;
         }
-        // updated scene image
-        if (sceneCard) {
-            const imgEl = sceneCard.querySelector('figure img');
-            if (imgEl) {
-                imgEl.src = dataImg.image_url + "?t=" + Date.now();
-            }
+
+        // If the old scene was replaced, add it to references
+        if (result.data.unused_old_image) {
+            await addReference(result.data.unused_old_image);
         }
 
-        // Automatically add the old replaced image to references if it exists
-        if (dataImg.unused_old_image) {
-            await addReference(dataImg.unused_old_image);
-        }
+        await openCropModalFromURL(result.data.image_url, sceneIndex);
 
-        // Open the cropping modal so user can recrop the newly edited scene
-        await openCropModalFromURL(dataImg.image_url, sceneIndex);
-
-        if (editBtn) {
-            editBtn.textContent = "Edit";
-            editBtn.disabled = false;
-        }
     } catch (err) {
         console.error("[DEBUG] confirmEditScene error:", err);
         if (attempt < 5) {
@@ -302,9 +380,7 @@ async function doEditSceneImage(sceneIndex, attempt) {
     buttonsManager.handleAction('finish_generation');
 }
 
-/**
- * Adds a reference path to job data and local referenceImagesLocal[].
- */
+/** Add path to references & local list */
 async function addReference(refPath) {
     if (!window.currentJobId) return;
     const body = { job_id: window.currentJobId, ref_path: refPath };
@@ -331,7 +407,8 @@ async function addReference(refPath) {
             if (!alreadyIn) {
                 let finalURL = refPath;
                 if (!finalURL.startsWith("/static/")) {
-                    finalURL = "/static/" + window.currentJobId + "/images/" + bname;
+                    // Build the local path to the job's images
+                    finalURL = "/static/projects/" + window.currentJobId + "/images/" + bname;
                 }
                 referenceImagesLocal.push({
                     filename: bname,
@@ -346,9 +423,7 @@ async function addReference(refPath) {
     }
 }
 
-/**
- * Upload new reference images to the job.
- */
+/** Upload new reference images to job */
 async function handleUploadReferenceFiles() {
     if (!window.refFileInput.files.length) return;
     if (!window.currentJobId) {
@@ -390,10 +465,7 @@ async function handleUploadReferenceFiles() {
     buttonsManager.handleAction('finish_generation');
 }
 
-/**
- * Refresh the reference thumbnails list
- * Now each thumbnail has a "remove" button in top-left corner.
- */
+/** Update reference thumbnails list */
 function updateReferenceFilesList() {
     const listEl = document.getElementById("reference-files-list");
     if (!listEl) return;
@@ -403,14 +475,11 @@ function updateReferenceFilesList() {
         const wrapper = document.createElement("div");
         wrapper.className = "ref-item-wrapper";
 
-        // Red "X" remove button
         const removeBtn = document.createElement("div");
         removeBtn.className = "ref-remove-btn";
         removeBtn.textContent = "X";
         removeBtn.addEventListener("click", () => {
-            // Remove from referenceImagesLocal
             referenceImagesLocal.splice(idx, 1);
-            // Re-render
             updateReferenceFilesList();
         });
         wrapper.appendChild(removeBtn);
@@ -427,7 +496,6 @@ function updateReferenceFilesList() {
             img.classList.add("unselected");
         }
 
-        // Toggle selection on click
         img.addEventListener("click", () => {
             ref.selected = !ref.selected;
             if (ref.selected) {
@@ -439,7 +507,6 @@ function updateReferenceFilesList() {
             }
         });
 
-        // Hover preview
         let hoverTimer = null;
         img.addEventListener("mouseenter", () => {
             hoverTimer = setTimeout(() => {
@@ -474,12 +541,23 @@ function hideReferencePreview() {
     previewEl.style.display = "none";
 }
 
-/**
- * Scene logic: pick local image => crop => place in scene
- */
+/** Normal scene image selection => crop => etc */
 window.handleSelectLocalImage = function(sceneIndex) {
     if (window.isGeneratingImage) return;
     window.localImageSceneIndex = sceneIndex;
+    window.overlayInProgress = false;
+
+    // Show the "Add original to references" label
+    const addRefLabel = document.getElementById('crop-add-ref-label');
+    if (addRefLabel) {
+        addRefLabel.style.display = 'inline-block';
+    }
+
+    // Hide the overlay opacity controls
+    const opacityControls = document.getElementById("overlay-opacity-controls");
+    if (opacityControls) {
+        opacityControls.style.display = "none";
+    }
 
     const [twStr, thStr] = window.videoSizeSelect.value.split('x');
     const tw = parseInt(twStr, 10) || 1920;
@@ -495,7 +573,6 @@ window.handleSelectLocalImage = function(sceneIndex) {
         if (!window.originalFile) return;
 
         localImageCropModal.style.display = 'flex';
-
         window.rectX = 0;
         window.rectY = 0;
         window.rectW = 100;
@@ -515,9 +592,6 @@ window.handleSelectLocalImage = function(sceneIndex) {
     fileInput.click();
 };
 
-/**
- * Generate a new AI image for the scene
- */
 window.handleGenerateImage = async function(sceneIndex, textArea, imgEl, regenBtn, attempt = 1) {
     if (attempt === 1) {
         if (window.isGeneratingImage) return;
@@ -548,9 +622,12 @@ window.handleGenerateImage = async function(sceneIndex, textArea, imgEl, regenBt
                 references: refs
             })
         });
-        const dataImg = await resp.json();
-        if (dataImg.error) {
-            console.error("[DEBUG] generate-image error:", dataImg.error);
+
+        const result = await processImageResponse(resp,
+            document.getElementById(`scene-card-${sceneIndex}`),
+            regenBtn
+        );
+        if (!result.success) {
             if (attempt < 5) {
                 await handleGenerateImage(sceneIndex, textArea, imgEl, regenBtn, attempt + 1);
             } else {
@@ -561,7 +638,8 @@ window.handleGenerateImage = async function(sceneIndex, textArea, imgEl, regenBt
             buttonsManager.handleAction('finish_generation');
             return;
         }
-        imgEl.src = dataImg.image_url + "?t=" + Date.now();
+
+        imgEl.src = result.data.image_url + "?t=" + Date.now();
 
         if (!sceneGenerated[sceneIndex]) {
             sceneGenerated[sceneIndex] = true;
@@ -569,14 +647,17 @@ window.handleGenerateImage = async function(sceneIndex, textArea, imgEl, regenBt
         }
         regenBtn.textContent = 'Regenerate';
 
-        // Once the image is loaded for this scene, enable the "Edit" button for the card
         const sceneCard = document.getElementById(`scene-card-${sceneIndex}`);
         if (sceneCard) {
             buttonsManager.handleAction('image_loaded', sceneCard);
+            const overlayBtn = sceneCard.querySelector('.overlay-btn');
+            if (overlayBtn) {
+                overlayBtn.disabled = false;
+                overlayBtn.style.display = 'inline-block';
+            }
         }
 
-        // Let user immediately crop
-        await openCropModalFromURL(dataImg.image_url, sceneIndex);
+        await openCropModalFromURL(result.data.image_url, sceneIndex);
 
         if (imagesGenerated >= totalScenes) {
             generateVideoBtn.disabled = false;
@@ -595,9 +676,6 @@ window.handleGenerateImage = async function(sceneIndex, textArea, imgEl, regenBt
     buttonsManager.handleAction('finish_generation');
 };
 
-/**
- * Loads an AI-generated image => open crop UI
- */
 async function openCropModalFromURL(imageUrl, sceneIndex) {
     try {
         const blob = await fetch(imageUrl).then(r => r.blob());
@@ -605,6 +683,18 @@ async function openCropModalFromURL(imageUrl, sceneIndex) {
 
         window.localImageSceneIndex = sceneIndex;
         window.originalFile = file;
+        window.overlayInProgress = false;
+
+        // Show "Add original to references"
+        const addRefLabel = document.getElementById('crop-add-ref-label');
+        if (addRefLabel) {
+            addRefLabel.style.display = 'inline-block';
+        }
+
+        const opacityControls = document.getElementById("overlay-opacity-controls");
+        if (opacityControls) {
+            opacityControls.style.display = "none";
+        }
 
         localImageCropModal.style.display = 'flex';
         window.rectX = 0;
@@ -629,24 +719,25 @@ async function openCropModalFromURL(imageUrl, sceneIndex) {
     }
 }
 
-/**
- * Crop confirm => /upload-local-image => update scene
- * If "crop-add-ref" is checked, add either old replaced or new final to references.
- */
 async function doCropConfirm() {
     if (!window.originalFile) {
         localImageCropModal.style.display = 'none';
         window.isGeneratingImage = false;
         buttonsManager.handleAction('finish_generation');
+        window.overlayInProgress = false;
         return;
     }
 
     const sceneIndex = window.localImageSceneIndex;
     const formData = new FormData();
     formData.append('job_id', window.currentJobId);
-    formData.append('mode', 'scene');
-
     formData.append('scene_index', sceneIndex);
+
+    let routeMode = "scene";
+    if (window.overlayInProgress) {
+        routeMode = "scene_overlay";
+    }
+    formData.append('mode', routeMode);
     formData.append('image_file', window.originalFile);
 
     formData.append('box_x', window.rectX);
@@ -655,6 +746,17 @@ async function doCropConfirm() {
     formData.append('box_h', window.rectH);
     formData.append('displayed_w', window.displayedImgWidth);
     formData.append('displayed_h', window.displayedImgHeight);
+
+    if (window.overlayInProgress) {
+        formData.append('crop_add_ref', 'false');
+    } else {
+        const addRefCheckbox = document.getElementById('crop-add-ref');
+        if (addRefCheckbox && addRefCheckbox.checked) {
+            formData.append('crop_add_ref', 'true');
+        } else {
+            formData.append('crop_add_ref', 'false');
+        }
+    }
 
     try {
         const resp = await fetch('/upload-local-image', {
@@ -667,64 +769,106 @@ async function doCropConfirm() {
             window.isGeneratingImage = false;
             buttonsManager.handleAction('finish_generation');
             localImageCropModal.style.display = 'none';
+            window.overlayInProgress = false;
             return;
         }
-        const sceneCard = document.getElementById(`scene-card-${sceneIndex}`);
-        if (sceneCard) {
-            const figureEl = sceneCard.querySelector('figure img');
-            figureEl.src = data.image_url + '?t=' + Date.now();
-        }
-        if (!sceneGenerated[sceneIndex]) {
-            sceneGenerated[sceneIndex] = true;
-            imagesGenerated++;
-        }
-        if (imagesGenerated >= totalScenes) {
-            generateVideoBtn.disabled = false;
-        }
+        if (!window.overlayInProgress) {
+            const sceneCard = document.getElementById(`scene-card-${sceneIndex}`);
+            if (sceneCard) {
+                const figureEl = sceneCard.querySelector('figure img');
+                figureEl.src = data.image_url + '?t=' + Date.now();
 
-        const addRefCheckbox = document.getElementById('crop-add-ref');
-        if (addRefCheckbox && addRefCheckbox.checked) {
-            if (data.unused_old_image) {
-                await addReference(data.unused_old_image);
-            } else {
-                await addReference(data.image_url);
+                const overlayBtn = sceneCard.querySelector('.overlay-btn');
+                if (overlayBtn) {
+                    overlayBtn.disabled = false;
+                    overlayBtn.style.display = 'inline-block';
+                }
             }
+            if (!sceneGenerated[sceneIndex]) {
+                sceneGenerated[sceneIndex] = true;
+                imagesGenerated++;
+            }
+            if (imagesGenerated >= totalScenes) {
+                generateVideoBtn.disabled = false;
+            }
+
+            // If the server says we added to references, add it to front-end list
+            if (data.added_ref_filename) {
+                const newRefPath = "/static/projects/" + window.currentJobId + "/images/" + data.added_ref_filename;
+                await addReference(newRefPath);
+            }
+        } else {
+            const overlayFilename = data.overlay_filename;
+            await applyOverlayToScene(sceneIndex, overlayFilename, window.overlayOpacity);
         }
     } catch (err) {
         console.error("[DEBUG] error uploading local image crop:", err);
         alert("Error uploading/cropping image");
     }
 
+    localImageCropModal.style.display = 'none';
     window.isGeneratingImage = false;
     buttonsManager.handleAction('finish_generation');
-    localImageCropModal.style.display = 'none';
+    window.overlayInProgress = false;
 }
 
-/**
- * Show the reference image in a modal => user can discard or add
- */
+async function applyOverlayToScene(sceneIndex, overlayFilename, opacityVal) {
+    const body = {
+        job_id: window.currentJobId,
+        scene_index: sceneIndex,
+        overlay_filename: overlayFilename,
+        opacity: opacityVal
+    };
+    buttonsManager.handleAction('start_generation');
+    window.isGeneratingImage = true;
+
+    try {
+        const resp = await fetch('/overlay-scene-image', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        const data = await resp.json();
+        if (data.error) {
+            alert(data.error);
+        } else {
+            const sceneCard = document.getElementById(`scene-card-${sceneIndex}`);
+            if (sceneCard) {
+                const figureEl = sceneCard.querySelector('figure img');
+                figureEl.src = data.image_url + '?t=' + Date.now();
+            }
+        }
+    } catch (err) {
+        console.error("Overlay error:", err);
+        alert("Failed to overlay images");
+    }
+    window.isGeneratingImage = false;
+    buttonsManager.handleAction('finish_generation');
+}
+
+function updateCropRect() {
+    if (!cropRect) return;
+    cropRect.style.left = window.rectX + 'px';
+    cropRect.style.top = window.rectY + 'px';
+    cropRect.style.width = window.rectW + 'px';
+    cropRect.style.height = window.rectH + 'px';
+}
+
 function showReferenceImageModal(imageUrl) {
     const mod = document.getElementById("reference-image-modal");
     const img = document.getElementById("reference-image-modal-img");
     if (!mod || !img) return;
 
     img.src = imageUrl;
-    // remove ?t=... so we have a stable path
     img.setAttribute("data-fullsrc", imageUrl.replace(/\?t=\d+$/, ""));
     mod.style.display = "flex";
 }
 
-/**
- * Hide the reference image modal
- */
 function hideReferenceImageModal() {
     const mod = document.getElementById("reference-image-modal");
     if (mod) mod.style.display = "none";
 }
 
-/**
- * "Generate Reference" => produce a new reference card image
- */
 window.handleGenerateReferenceCardImage = async function(textArea, imgEl, button, editBtn, attempt = 1) {
     if (attempt === 1) {
         if (window.isGeneratingImage) return;
@@ -741,7 +885,7 @@ window.handleGenerateReferenceCardImage = async function(textArea, imgEl, button
     try {
         const resp = await fetch("/generate-image", {
             method: "POST",
-            headers: { 'Content-Type': 'application/json' },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 job_id: window.currentJobId,
                 scene_index: 0,
@@ -750,9 +894,9 @@ window.handleGenerateReferenceCardImage = async function(textArea, imgEl, button
                 references: refs
             })
         });
-        const dataImg = await resp.json();
-        if (dataImg.error) {
-            console.error("[DEBUG] reference_card generate error:", dataImg.error);
+
+        const result = await processImageResponse(resp, null, button);
+        if (!result.success) {
             if (attempt < 5) {
                 await handleGenerateReferenceCardImage(textArea, imgEl, button, editBtn, attempt + 1);
             } else {
@@ -763,10 +907,9 @@ window.handleGenerateReferenceCardImage = async function(textArea, imgEl, button
             buttonsManager.handleAction('finish_generation');
             return;
         }
-        imgEl.src = dataImg.image_url + "?t=" + Date.now();
 
-        // Show the reference image modal => user can discard or add
-        showReferenceImageModal(dataImg.image_url);
+        imgEl.src = result.data.image_url + "?t=" + Date.now();
+        showReferenceImageModal(result.data.image_url);
 
         editBtn.style.display = 'inline-block';
         editBtn.disabled = false;
@@ -786,9 +929,6 @@ window.handleGenerateReferenceCardImage = async function(textArea, imgEl, button
     buttonsManager.handleAction('finish_generation');
 };
 
-/**
- * "Select local file" to replace a reference card
- */
 window.handleSelectLocalReferenceImage = function(imgEl, editRefBtn) {
     if (window.isGeneratingImage) return;
     buttonsManager.handleAction('start_generation');
@@ -811,7 +951,6 @@ window.handleSelectLocalReferenceImage = function(imgEl, editRefBtn) {
             return;
         }
 
-        // We'll re-use upload-local-image with mode=reference_card to store it
         const formData = new FormData();
         formData.append('job_id', window.currentJobId);
         formData.append('scene_index', '0');
@@ -844,11 +983,3 @@ window.handleSelectLocalReferenceImage = function(imgEl, editRefBtn) {
     };
     fileInput.click();
 };
-
-function updateCropRect() {
-    if (!cropRect) return;
-    cropRect.style.left = window.rectX + 'px';
-    cropRect.style.top = window.rectY + 'px';
-    cropRect.style.width = window.rectW + 'px';
-    cropRect.style.height = window.rectH + 'px';
-}

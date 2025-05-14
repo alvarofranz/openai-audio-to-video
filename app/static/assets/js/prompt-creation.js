@@ -1,5 +1,5 @@
 // prompt-creation.js
-// Manages generating scene prompts & final consistency adjustments
+// Manages generating scene prompts.
 
 document.addEventListener('DOMContentLoaded', function() {
     generatePromptsBtn.addEventListener('click', async () => {
@@ -27,10 +27,7 @@ document.addEventListener('DOMContentLoaded', function() {
             chunkProcessingStatus.textContent = `Generated prompt for scene ${i + 1} of ${window.totalScenes}`;
         }
 
-        // Now do a final "adjust-prompts" pass
-        chunkProcessingStatus.textContent = "Finalizing prompts consistency...";
-        await adjustAllPrompts();
-
+        // Done with prompt generation
         chunkProcessingStatus.style.display = 'none';
 
         // Enable "Generate Video" button area
@@ -65,38 +62,4 @@ function fillPromptTab(sceneCard, finalPrompt) {
 
     // Now that we have a prompt, enable the "Generate" button for this scene
     buttonsManager.handleAction('prompt_available', sceneCard);
-}
-
-async function adjustAllPrompts() {
-    try {
-        const resp = await fetch('/adjust-prompts', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ job_id: window.currentJobId })
-        });
-        const data = await resp.json();
-        if (data.error) {
-            console.warn("Prompt adjustment error:", data.error);
-            return; // fallback: keep old prompts
-        }
-        if (!data.adjusted_prompts) {
-            console.warn("No adjusted_prompts in response");
-            return; // fallback
-        }
-
-        // Replace the textareas
-        data.adjusted_prompts.forEach(item => {
-            const sceneIndex = item.scene_index;
-            const newPrompt = item.prompt;
-            const sceneCard = document.getElementById(`scene-card-${sceneIndex}`);
-            if (sceneCard) {
-                const promptTab = sceneCard.querySelector('.tab-content-prompt textarea');
-                if (promptTab) {
-                    promptTab.value = newPrompt;
-                }
-            }
-        });
-    } catch (err) {
-        console.error("Error adjusting all prompts:", err);
-    }
 }

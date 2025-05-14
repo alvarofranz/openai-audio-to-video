@@ -40,3 +40,28 @@ def process_local_image(input_file_stream, output_path, target_width, target_hei
     final_img = cropped.resize((target_width, target_height), Image.LANCZOS)
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     final_img.save(output_path, format="PNG")
+
+def overlay_images(base_image_path, overlay_image_path, output_path, opacity_percent):
+    """
+    Overlays 'overlay_image_path' on top of 'base_image_path'
+    with the given opacity (0..100).
+    Saves to output_path.
+    """
+    base_img = Image.open(base_image_path).convert("RGBA")
+    overlay_img = Image.open(overlay_image_path).convert("RGBA")
+
+    # ensure same size
+    if base_img.size != overlay_img.size:
+        overlay_img = overlay_img.resize(base_img.size, Image.LANCZOS)
+
+    # apply opacity
+    alpha = max(min(opacity_percent, 100), 0) / 100.0
+    # Create a copy so as not to mess the original
+    overlay_copy = overlay_img.copy()
+    # putalpha expects a scale 0..255
+    overlay_copy.putalpha(int(alpha * 255))
+
+    # composite
+    result = Image.alpha_composite(base_img, overlay_copy)
+
+    result.save(output_path, format="PNG")

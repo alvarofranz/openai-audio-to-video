@@ -10,16 +10,19 @@ document.addEventListener('DOMContentLoaded', function() {
             const allRegen = document.querySelectorAll('.regenerate-btn');
             const allSelect = document.querySelectorAll('.select-local-btn');
             const allEdits = document.querySelectorAll('.edit-btn');
+            const allOverlays = document.querySelectorAll('.overlay-btn');
 
             allRegen.forEach(btn => btn.disabled = true);
             allSelect.forEach(btn => btn.disabled = true);
             allEdits.forEach(btn => btn.disabled = true);
+            allOverlays.forEach(btn => btn.disabled = true);
         },
 
         enableAll() {
             const allRegen = document.querySelectorAll('.regenerate-btn');
             const allSelect = document.querySelectorAll('.select-local-btn');
             const allEdits = document.querySelectorAll('.edit-btn');
+            const allOverlays = document.querySelectorAll('.overlay-btn');
 
             // Only enable if the button is currently visible in the DOM
             allRegen.forEach(btn => {
@@ -27,15 +30,34 @@ document.addEventListener('DOMContentLoaded', function() {
                     btn.disabled = false;
                 }
             });
+
             allSelect.forEach(btn => {
                 if (btn.offsetParent !== null) {
                     btn.disabled = false;
                 }
             });
+
             allEdits.forEach(btn => {
                 // We check if it's not hidden via style.display or offsetParent
                 if (btn.style.display !== 'none' && btn.offsetParent !== null) {
                     btn.disabled = false;
+                }
+            });
+
+            // Only enable overlay buttons if the scene has an image
+            allOverlays.forEach(btn => {
+                if (btn.offsetParent !== null) {
+                    // Find the scene figure that contains this overlay button
+                    const sceneCard = btn.closest('.scene-card');
+                    if (sceneCard) {
+                        const imgEl = sceneCard.querySelector('figure img');
+                        // Only enable if image exists and is not a placeholder
+                        if (imgEl && imgEl.src && !imgEl.src.endsWith('placeholder.png')) {
+                            btn.disabled = false;
+                        } else {
+                            btn.disabled = true;
+                        }
+                    }
                 }
             });
         },
@@ -68,12 +90,18 @@ document.addEventListener('DOMContentLoaded', function() {
                     break;
 
                 case 'image_loaded':
-                    // means an image for a particular scene or reference is now present => enable "Edit" button
+                    // means an image for a particular scene or reference is now present
+                    // => enable "Edit" button and "Overlay" button
                     if (targetCard) {
                         const editBtn = targetCard.querySelector('.edit-btn');
                         if (editBtn) {
                             editBtn.style.display = 'inline-block';
                             editBtn.disabled = false;
+                        }
+
+                        const overlayBtn = targetCard.querySelector('.overlay-btn');
+                        if (overlayBtn) {
+                            overlayBtn.disabled = false;
                         }
                     }
                     break;

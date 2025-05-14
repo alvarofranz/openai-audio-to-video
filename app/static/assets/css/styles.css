@@ -216,6 +216,13 @@ figure img {
     margin-left: 0;
 }
 
+.overlay-btn {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    margin-left: 0;
+}
+
 .bottom-buttons {
     position: absolute;
     bottom: 10px;
@@ -385,6 +392,49 @@ figure img {
     border: 2px dashed var(--color-orange);
     cursor: move;
     box-sizing: border-box;
+}
+
+/* Overlay opacity controls */
+#overlay-opacity-controls {
+    display: none; /* Hidden by default, shown when overlaying */
+    background: var(--dark-gray);
+    padding: 10px;
+    border-radius: 4px;
+    margin: 10px 0;
+}
+
+#overlay-opacity-slider {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 10px;
+    border-radius: 5px;
+    background: #666;
+    outline: none;
+}
+
+#overlay-opacity-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--accent-color);
+    cursor: pointer;
+}
+
+#overlay-opacity-slider::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--accent-color);
+    cursor: pointer;
+    border: none;
+}
+
+#overlay-opacity-value {
+    min-width: 40px;
+    text-align: right;
+    font-weight: bold;
 }
 
 .btn-row {

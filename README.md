@@ -76,12 +76,9 @@ OPENAI_API_KEY=your_openai_api_key
 python create_video.py ./demo/audio-file.mp3
 ```
 
-## Roadmap
-
-- Implement a smooth and subtle Kenburns random walk to the final video to add some dynamism.
-
 ## Changelog
 
+- `MAY 15, 2025:` Add overlay feature and allow deleting reference images.
 - `APR 23, 2025:` Implement `gpt-image-1` model, image edition and references library.
 - `APR 22, 2025:` Added feature to select local image and image cropping.
 - `APR 21, 2025:` Added fade-in, fade-out and cross-fade transitions.
